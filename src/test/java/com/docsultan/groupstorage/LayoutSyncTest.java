@@ -18,7 +18,7 @@ public class LayoutSyncTest
         int commits;
         Node(long id,boolean host,Integer... initial)
         {
-            this.id=id; saved=new StorageLayout(Arrays.asList(initial)); nodes.add(this);
+            this.id=id; saved=initial==null?null:new StorageLayout(Arrays.asList(initial)); nodes.add(this);
             sync=new LayoutSync(host,id,1,"group",saved,m -> { m.setMemberId(id); network.add(m); },
                 layout -> { saved=layout; commits++; },notices::add,() -> now);
         }
@@ -35,6 +35,52 @@ public class LayoutSyncTest
     }
     void connect(Node... followers) { for(Node n:followers) n.sync.tick(); flush(); }
     void equal(Node... all) { for(Node n:all) assertEquals(all[0].saved.encode(),n.saved.encode()); }
+
+    @Test public void missingHostLayoutIsReportedWithoutReplacingFollowersAndCaptureRecovers()
+    {
+        Node a=new Node(1,true,(Integer[])null), b=new Node(2,false,999), c=new Node(3,false,333);
+        connect(b,c);
+        assertFalse(a.sync.hasLayout());
+        for(Node n:Arrays.asList(b,c))
+        {
+            assertTrue(n.sync.hostNeedsLayout()); assertFalse(n.sync.ready());
+            assertEquals(0,n.commits); assertFalse(n.sync.move(0,1,n.saved.itemAt(0)));
+        }
+        assertEquals(999,b.saved.itemAt(0)); assertEquals(333,c.saved.itemAt(0));
+        a.sync.replace(new StorageLayout(Arrays.asList(100,200))); flush();
+        now+=LayoutSync.POLL_MS; connect(b,c);
+        equal(a,b,c); assertTrue(b.sync.ready()); assertFalse(b.sync.hostNeedsLayout());
+        assertTrue(c.sync.move(0,2,100)); flush(); equal(a,b,c);
+    }
+    @Test public void missingLayoutReplyMustBeFreshAndFromHostAndExpires()
+    {
+        Node a=new Node(1,true,(Integer[])null), b=new Node(2,false,999);
+        b.sync.tick(); a.sync.receive(network.remove()); GroupStorageLayoutSyncMessage reply=network.remove();
+        reply.setMemberId(3); b.sync.receive(reply); assertFalse(b.sync.hostNeedsLayout());
+        reply.setMemberId(1); now+=LayoutSync.POLL_MS; b.sync.tick();
+        b.sync.receive(reply); assertFalse(b.sync.hostNeedsLayout());
+        flush(); assertTrue(b.sync.hostNeedsLayout());
+        now+=LayoutSync.TIMEOUT_MS; assertFalse(b.sync.hostNeedsLayout());
+        assertEquals(999,b.saved.itemAt(0)); assertEquals(0,b.commits);
+    }
+    @Test public void delayedMissingLayoutReplyCannotPauseNewerSnapshot()
+    {
+        Node a=new Node(1,true,(Integer[])null), b=new Node(2,false,999);
+        b.sync.tick(); GroupStorageLayoutSyncMessage request=network.remove();
+        a.sync.receive(request); GroupStorageLayoutSyncMessage delayed=network.remove();
+        a.sync.replace(new StorageLayout(Arrays.asList(100,200))); flush();
+        a.sync.receive(request); flush(); assertTrue(b.sync.ready());
+        b.sync.receive(delayed); assertTrue(b.sync.ready()); assertFalse(b.sync.hostNeedsLayout()); equal(a,b);
+    }
+    @Test public void restartedHostWithoutLayoutPausesFollowerAndKeepsLastGoodCopy()
+    {
+        Node a=new Node(1,true,100,200), b=new Node(2,false,999); connect(b);
+        nodes.remove(a); Node restarted=new Node(1,true,(Integer[])null);
+        now+=LayoutSync.POLL_MS; connect(b);
+        assertTrue(b.sync.hostNeedsLayout()); assertFalse(b.sync.ready()); assertEquals(100,b.saved.itemAt(0));
+        restarted.sync.replace(new StorageLayout(Arrays.asList(300,400))); flush();
+        now+=LayoutSync.POLL_MS; connect(b); equal(restarted,b); assertTrue(b.sync.ready());
+    }
 
     @Test public void threeClientsJoinAndAnyMemberCanDrag()
     {

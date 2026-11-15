@@ -50,6 +50,27 @@ public class PartyLayoutSyncTest
         GroupStorageLayoutSyncMessage m=handshake(); adapter.receive(m,adapter.generation);
         assertTrue(adapter.canEdit()); assertFalse(adapter.canReplace()); verify(plugin).acceptSyncedLayout(any(StorageLayout.class));
     }
+    @Test public void hostWithoutLayoutGetsSetupInstructionsAndRepliesToFollower()
+    {
+        when(player.getName()).thenReturn("Doc Sultan"); when(party.getLocalMember()).thenReturn(host);
+        when(plugin.savedLayout()).thenReturn(null);
+        adapter.configure(true,"Doc Sultan"); adapter.tick();
+        verify(plugin).syncStatus(contains("no saved layout yet"),eq(true),eq("Doc Sultan"));
+        GroupStorageLayoutSyncMessage request=new GroupStorageLayoutSyncMessage();
+        request.kind="get"; request.group="group"; request.token="fresh"; request.setMemberId(2);
+        adapter.receive(request,adapter.generation);
+        ArgumentCaptor<GroupStorageLayoutSyncMessage> sent=ArgumentCaptor.forClass(GroupStorageLayoutSyncMessage.class);
+        verify(party).send(sent.capture());
+        assertEquals("no-layout",sent.getValue().kind); assertEquals("fresh",sent.getValue().token);
+        assertEquals(2,sent.getValue().recipient); assertTrue(adapter.canReplace());
+    }
+    @Test public void followerExplainsMissingHostLayoutWithoutApplyingAnything()
+    {
+        GroupStorageLayoutSyncMessage m=handshake(); m.kind="no-layout"; m.layout=null;
+        adapter.receive(m,adapter.generation);
+        verify(plugin).syncStatus(contains("they have no saved layout"),eq(true),eq("Doc Sultan"));
+        verify(plugin,never()).acceptSyncedLayout(any()); assertFalse(adapter.canEdit());
+    }
     @Test public void outsiderInPartyPausesAllSharing()
     {
         PartyMember outsider=member(3,"Outsider");

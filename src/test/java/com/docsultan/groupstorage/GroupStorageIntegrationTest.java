@@ -55,6 +55,39 @@ public class GroupStorageIntegrationTest
         nativeItems(100,200,300,400,500,600,700,800,900);
     }
 
+    @Test public void repeatedArrangeClicksWithoutLayoutResetCheckbox() throws Exception
+    {
+        StoragePanel[] panel=new StoragePanel[1];
+        javax.swing.SwingUtilities.invokeAndWait(() -> panel[0]=new StoragePanel(plugin));
+        java.lang.reflect.Field field=GroupStoragePlugin.class.getDeclaredField("panel");
+        field.setAccessible(true); field.set(plugin,panel[0]);
+        java.lang.reflect.Field checkbox=StoragePanel.class.getDeclaredField("arrange");
+        checkbox.setAccessible(true);
+        javax.swing.JCheckBox arrange=(javax.swing.JCheckBox)checkbox.get(panel[0]);
+        for(int attempt=0;attempt<2;attempt++)
+        {
+            javax.swing.SwingUtilities.invokeAndWait(arrange::doClick);
+            javax.swing.SwingUtilities.invokeAndWait(() -> assertFalse(arrange.isSelected()));
+        }
+    }
+
+    @Test public void applyingSyncWithStorageClosedResetsArrangeCheckbox() throws Exception
+    {
+        plugin.capture();
+        StoragePanel[] panel=new StoragePanel[1];
+        javax.swing.SwingUtilities.invokeAndWait(() -> panel[0]=new StoragePanel(plugin));
+        java.lang.reflect.Field field=GroupStoragePlugin.class.getDeclaredField("panel");
+        field.setAccessible(true); field.set(plugin,panel[0]);
+        java.lang.reflect.Field checkbox=StoragePanel.class.getDeclaredField("arrange");
+        checkbox.setAccessible(true);
+        javax.swing.JCheckBox arrange=(javax.swing.JCheckBox)checkbox.get(panel[0]);
+        javax.swing.SwingUtilities.invokeAndWait(arrange::doClick);
+        javax.swing.SwingUtilities.invokeAndWait(() -> assertTrue(arrange.isSelected()));
+        when(parent.isHidden()).thenReturn(true);
+        plugin.configureSync(true,"Doc Sultan");
+        javax.swing.SwingUtilities.invokeAndWait(() -> assertFalse(arrange.isSelected()));
+    }
+
     private void nativeItems(int... ids)
     {
         children=new Widget[ids.length]; items=new Item[ids.length];

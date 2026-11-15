@@ -2,7 +2,7 @@
 
 ## Automated tests
 
-51 JUnit tests cover the model, geometry, native widget integration, input handling,
+59 JUnit tests cover the model, geometry, native widget integration, input handling,
 Party membership adapter and revision protocol. Game APIs and containers are mocked;
 tests do not log in or perform game actions.
 
@@ -13,6 +13,12 @@ mode input. Sync tests include concurrent/duplicate drags, dropped broadcasts,
 delayed acknowledgements, stale revisions/sessions, offline hosts, saved offline
 edits, new items, capacity limits, invalid messages/IDs, party/roster changes,
 transport failures and native click-index preservation after received layouts.
+
+Version 0.2.3 adds coverage for missing host layouts, preserving follower copies,
+recovery after capture/import, stale or untrusted no-layout replies, restarted hosts,
+host/follower setup messages and Arrange checkbox feedback after rejected clicks or
+applying sync settings with storage closed. `gradlew test jar` passed for this update.
+The earlier real relay smoke test below was not rerun for 0.2.3.
 
 ## Real relay smoke test — 2026-11-15
 
@@ -45,6 +51,12 @@ native order, as expected. Local layout dragging was also observed in developmen
 client logs. This is user-reported/manual evidence, not automated coverage of all
 storage transactions.
 
+On 2026-11-15, the user confirmed that Party sync with their teammate SneezerDwarf
+was working as intended in the published version, with revisions advancing as they
+moved items. This does not establish that the earlier waiting status was caused by
+a missing host layout. Version 0.2.3 removes visible revision counters and clarifies
+setup and missing-layout states; its new UI has not yet been tested live by them.
+
 ## Remaining manual acceptance coverage
 
 - Full withdraw-last / deposit-return cycle with moved placeholders on multiple
@@ -55,5 +67,6 @@ storage transactions.
 - Reconnection after a client crash, game logout or retained duplicate host.
 - Interactions with other plugins that modify group storage widgets.
 
-These limits accompany the Plugin Hub submission. No claim of approval or complete
-live multi-account verification is made.
+These limits accompany the update submission. The original release was accepted
+into Plugin Hub; this does not imply approval of an unreviewed update or complete
+live multi-account verification.

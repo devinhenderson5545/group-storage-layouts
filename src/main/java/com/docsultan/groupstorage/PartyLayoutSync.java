@@ -148,9 +148,11 @@ final class PartyLayoutSync
     private void renderStatus()
     {
         if(state!=null)
-            detail=state.isHost()?"Hosting shared layout as "+hostName+". Revision "+state.revision()+".":
-                !state.ready()?"Waiting for "+hostName+" to respond. Shared edits are paused.":
-                state.pending()?"Waiting for the host to confirm your drag.":"Synced with "+hostName+". Revision "+state.revision()+".";
+            detail=state.isHost()?(state.hasLayout()?"Hosting shared layout as "+hostName+".":
+                "You are the layout host, but have no saved layout yet. Open group storage and capture its arrangement, or import a layout."):
+                state.hostNeedsLayout()?"Connected to "+hostName+", but they have no saved layout. Ask them to capture or import once. Your saved layout is kept; shared edits are paused.":
+                !state.ready()?"Waiting for "+hostName+" to send a layout. Shared edits are paused. On the host: enable this plugin and sync, apply the same host name, and capture or import a layout if none is saved.":
+                state.pending()?"Waiting for the host to confirm your drag.":"Synced with "+hostName+".";
         String status=enabled && state==null && isLocalHost()
             ? "Host edits are saved locally and will sync when the party connection is ready. "+detail : detail;
         plugin.syncStatus(status,enabled,hostName);

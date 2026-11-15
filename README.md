@@ -5,7 +5,7 @@ manual sharing and optional RuneLite Party synchronization.
 
 **This changes the view, not the server's storage order.** Each teammate needs
 this plugin and the same layout to see the same positions. Native clients keep
-showing native order. This is not yet an approved Plugin Hub release.
+showing native order. Install **Group Storage Layouts** from RuneLite's Plugin Hub.
 
 ## Arrange storage
 
@@ -36,11 +36,22 @@ positions only, with no account credentials.
 ## Automatic sharing
 
 1. Choose one member as the layout host. Their saved layout is authoritative.
+   **The host needs a saved layout:** open group storage and capture its arrangement
+   once, or import the desired layout from a teammate. Skip this if already saved;
+   capturing again replaces the saved arrangement. Followers do not need to capture.
 2. Enable RuneLite's built-in **Party** plugin and join the same private party.
 3. Enter the same host character name on every client. Check **Automatically sync
    with party** and click **Apply sync settings**. Sync is off by default; the host
    field initially starts blank.
-4. Wait for **Hosting shared layout** or **Synced with ...** in the panel.
+4. The host should see **Hosting shared layout**; everyone else should see
+   **Synced with ...**. GIM membership alone does not connect clients: all must be
+   in the same RuneLite Party and have this plugin installed and enabled.
+
+If a follower is waiting, check the host's panel. A host with no saved layout must
+capture or import one first. Version 0.2.3 explicitly reports this on both sides
+when both clients are updated. Older hosts may remain silent, so a generic waiting
+status does not identify the cause. Followers retry every five seconds; no sync
+toggle is needed. Revision numbers are internal and are not shown in the panel.
 
 Everyone can drag while connected. Follower moves wait for host acknowledgement.
 Conflicting moves are rejected and refreshed instead of overwriting another edit.

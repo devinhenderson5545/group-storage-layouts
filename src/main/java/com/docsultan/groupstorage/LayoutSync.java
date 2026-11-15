@@ -18,7 +18,7 @@ final class LayoutSync
     private StorageLayout layout;
     private String session, poll, pending;
     private long revision, nextPoll, lastHeard, pendingSince;
-    private boolean heard;
+    private boolean heard, hostNeedsLayout;
     private int[] observed=new int[0];
 
     LayoutSync(boolean host,long self,long leader,String group,StorageLayout initial,
@@ -32,6 +32,8 @@ final class LayoutSync
     }
 
     boolean isHost() { return host; }
+    boolean hasLayout() { return layout!=null; }
+    boolean hostNeedsLayout() { return hostNeedsLayout && clock.getAsLong()-lastHeard<TIMEOUT_MS; }
     boolean ready() { return host || (heard && clock.getAsLong()-lastHeard<TIMEOUT_MS); }
     boolean pending() { return pending!=null; }
     long revision() { return revision; }
@@ -90,7 +92,12 @@ final class LayoutSync
         {
             if("get".equals(m.kind) && m.token!=null)
             {
-                if(layout==null) return;
+                if(layout==null)
+                {
+                    GroupStorageLayoutSyncMessage reply=message("no-layout");
+                    reply.token=m.token; reply.recipient=m.getMemberId(); send.accept(reply);
+                    return;
+                }
                 if(m.observed!=null && m.observed.length<=StorageLayout.MAX_SLOTS)
                 {
                     for(int id:m.observed) if(id<=0 || id>1_000_000) return;
@@ -110,9 +117,19 @@ final class LayoutSync
             }
             return;
         }
-        if(m.getMemberId()!=leader || !"snapshot".equals(m.kind) || m.session==null) return;
+        if(m.getMemberId()!=leader || m.session==null) return;
         boolean polled=poll!=null && poll.equals(m.token);
         boolean same=Objects.equals(session,m.session);
+        if("no-layout".equals(m.kind))
+        {
+            // Only a fresh reply may pause editing. Never erase our saved layout or
+            // let a delayed no-layout reply roll back a snapshot from this session.
+            if(!polled || (same && m.revision<=revision)) return;
+            heard=false; hostNeedsLayout=true; lastHeard=clock.getAsLong();
+            poll=null; pending=null;
+            return;
+        }
+        if(!"snapshot".equals(m.kind)) return;
         // A different host session requires a response to our fresh challenge.
         if(!same && !polled) return;
         if(same && m.revision<revision) return;
@@ -120,7 +137,7 @@ final class LayoutSync
         try { incoming=StorageLayout.decode(m.layout); }
         catch(IllegalArgumentException ex) { return; }
         boolean update=!same || layout==null || m.revision>revision;
-        session=m.session; revision=m.revision; heard=true; lastHeard=clock.getAsLong();
+        session=m.session; revision=m.revision; heard=true; hostNeedsLayout=false; lastHeard=clock.getAsLong();
         if(polled) poll=null;
         if(pending!=null && pending.equals(m.token))
         {

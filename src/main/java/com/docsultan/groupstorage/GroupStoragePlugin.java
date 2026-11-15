@@ -204,11 +204,16 @@ public class GroupStoragePlugin extends Plugin
     void setArrange(boolean value)
     {
         clientThread.invokeLater(() -> {
-            if(value && sync!=null && !sync.canEdit()) { status("Shared editing is paused. Wait for the host to sync or acknowledge your last drag."); return; }
+            // A checkbox click changes Swing state before we accept/reject it.
+            // Always send the actual state back, even after a repeated rejection.
+            lastStatus=null;
+            if(value && sync!=null && !sync.canEdit()) { arranging=false; if(mouse!=null) mouse.cancel(); refreshView(); status("Shared editing is paused. Wait for the host to sync or acknowledge your last drag."); return; }
             arranging=value && enabled && layout!=null;
             if(mouse!=null) mouse.cancel();
             refreshView();
-            status(arranging?"Arrange mode: drag to swap positions. Storage item clicks are disabled.":"Normal storage clicks enabled. Saved positions stay fixed.");
+            status(arranging?"Arrange mode: drag to swap positions. Storage item clicks are disabled.":
+                value && layout==null?"No saved layout yet. Capture or import one; if following a host, wait for sync.":
+                value && !enabled?"Enable Show saved layout before arranging.":"Normal storage clicks enabled. Saved positions stay fixed.");
         });
     }
     void move(int source,int target,int itemId,long expectedEpoch)
@@ -402,6 +407,8 @@ public class GroupStoragePlugin extends Plugin
             config.setRSProfileConfiguration(CONFIG,"syncEnabled",Boolean.toString(active));
             arranging=false; restore();
             if(sync!=null) { sync.configure(active,name); sync.tick(); }
+            lastStatus=null;
+            status("Normal storage clicks enabled. Arrange mode is off.");
             apply();
         });
     }

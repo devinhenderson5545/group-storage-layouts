@@ -28,11 +28,12 @@ final class StoragePanel extends PluginPanel
         enabled.addActionListener(e -> plugin.setEnabledView(enabled.isSelected())); add(enabled);
         arrange.addActionListener(e -> plugin.setArrange(arrange.isSelected())); add(arrange);
         add(new JLabel("<html><br>Arrange: drag items or faded placeholders.<br>Occupied slots swap; empty slots keep gaps.<br><br>Turn Arrange off to withdraw/deposit.<br>Use the game's Save button as usual.<br><br></html>"));
-        add(syncEnabled); add(new JLabel("Layout host (same on all clients):")); add(host);
+        add(new JLabel("<html><b>Shared layout setup</b><br>1. Choose one host. Their saved layout is used.<br>2. Host only: capture storage once, or import the layout you want to share. Skip this if already saved.<br>3. Everyone: join the same private RuneLite Party (GIM membership alone is not enough).<br>4. Everyone: enable sync below, enter that host's character name, then Apply.<br><br></html>"));
+        add(syncEnabled); add(new JLabel("Same host name on everyone's client:")); add(host);
         JButton connect=new JButton("Apply sync settings");
         connect.addActionListener(e -> plugin.configureSync(syncEnabled.isSelected(),host.getText())); add(connect);
         add(syncStatus);
-        add(new JLabel("<html><br>Join the same private RuneLite Party.<br>All three can drag; the host confirms edits.<br>The host can also edit outside the party.<br>Those edits sync automatically on rejoining.<br><br></html>"));
+        add(new JLabel("<html><br>Host should see <b>Hosting shared layout</b>.<br>Everyone else should see <b>Synced with...</b><br>Then everyone can enable Arrange and drag.<br>Host edits outside the party sync on rejoining.<br>Capturing again replaces the saved arrangement.<br><br></html>"));
         JButton backup=new JButton("Restore pre-sync layout (sync off)");
         backup.addActionListener(e -> plugin.restoreBeforeSync()); add(backup);
         JButton export=new JButton("Export layout into text box");
