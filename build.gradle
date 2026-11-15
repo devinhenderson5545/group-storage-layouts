@@ -1,0 +1,30 @@
+plugins { id 'java' }
+repositories {
+    maven { url = 'https://repo.runelite.net'; content { includeGroupByRegex('net\\.runelite.*') } }
+    mavenCentral()
+}
+def rlVersion = '1.13.6'
+dependencies {
+    compileOnly "net.runelite:client:${rlVersion}"
+    testImplementation "net.runelite:client:${rlVersion}"
+    testImplementation "net.runelite:jshell:${rlVersion}"
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:4.11.0'
+}
+group = 'com.docsultan.groupstorage'
+version = '0.2.2'
+
+test { systemProperty 'user.home', layout.buildDirectory.dir('test-home').get().asFile.absolutePath }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release.set(11) }
+tasks.register('writeRuntimeClasspath') {
+    dependsOn testClasses
+    doLast { layout.buildDirectory.file('runtime-classpath.txt').get().asFile.text = sourceSets.test.runtimeClasspath.asPath }
+}
+
+// Explicit opt-in: never contacts the Party relay during unit tests or client launch.
+tasks.register('partyRelaySmoke', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.docsultan.groupstorage.PartyRelaySmoke'
+    systemProperty 'user.home', layout.buildDirectory.dir('relay-home').get().asFile.absolutePath
+}
