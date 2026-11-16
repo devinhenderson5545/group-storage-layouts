@@ -36,7 +36,7 @@ final class StoragePanel extends PluginPanel
         JButton connect=new JButton("Apply sync settings");
         connect.addActionListener(e -> plugin.configureSync(syncEnabled.isSelected(),host.getText())); add(connect);
         add(syncStatus);
-        add(new JLabel("<html><br>Host should see <b>Hosting shared layout</b>.<br>Everyone else should see <b>Synced with...</b><br>Then everyone can enable Arrange and drag.<br>Host edits outside the party sync on rejoining.<br>Capturing again replaces the saved arrangement.<br><br></html>"));
+        add(new JLabel("<html><br>Host should see <b>Hosting shared layout</b>.<br>Everyone else should see <b>Synced with...</b><br>Then everyone can enable Arrange and drag.<br><br>Settings and received layouts are saved for this character. Restarting does not require Capture.<br>A fresh client needs the host online in the same Party for its first sync.<br>Host edits outside the party sync on rejoining.<br>Capturing again replaces the saved arrangement.<br><br></html>"));
         JButton backup=new JButton("Restore pre-sync layout (sync off)");
         backup.addActionListener(e -> plugin.restoreBeforeSync()); add(backup);
         JButton export=new JButton("Export layout into text box");

@@ -53,6 +53,7 @@ public final class PartyRelaySmoke
         PartyLayoutSync adapter;
         String adapterStatus="";
         long received;
+        long commits;
         Node(String name,String passphrase,StorageLayout initial) throws Exception
         {
             this.name="gsl"+name; file=output.resolve(name+".txt"); saved=initial;
@@ -61,12 +62,14 @@ public final class PartyRelaySmoke
             when(client.getItemCount()).thenReturn(40000);
             ClanSettings clan=mock(ClanSettings.class); when(clan.getName()).thenReturn("synthetic-relay-test");
             List<ClanMember> roster=new ArrayList<>();
-            for(String memberName:Arrays.asList("gslhost","gslsecond","gslthird"))
+            for(String memberName:Arrays.asList("gslhost","gslsecond","gslthird","gslfourth"))
             { ClanMember member=mock(ClanMember.class); when(member.getName()).thenReturn(memberName); roster.add(member); }
             when(clan.getMembers()).thenReturn(roster); when(client.getClanSettings(ClanID.GROUP_IRONMAN)).thenReturn(clan);
             when(plugin.savedLayout()).thenAnswer(call -> saved);
+            when(plugin.layoutColumns()).thenReturn(8);
             doAnswer(call -> { save(call.getArgument(0)); return null; }).when(plugin).acceptSyncedLayout(any());
             doAnswer(call -> { adapterStatus=call.getArgument(0); return null; }).when(plugin).syncStatus(anyString(),anyBoolean(),anyString());
+            doAnswer(call -> { notices.add(call.getArgument(0)); return null; }).when(plugin).syncNotice(anyString());
             EventBus bus=new EventBus();
             Injector injector=Guice.createInjector(new AbstractModule() {
                 @Override protected void configure()
@@ -101,6 +104,7 @@ public final class PartyRelaySmoke
         }
         void save(StorageLayout layout)
         {
+            commits++;
             saved=layout;
             try { Files.writeString(file,layout.encode()); }
             catch(Exception ex) { throw new IllegalStateException(ex); }
@@ -128,6 +132,8 @@ public final class PartyRelaySmoke
             if(done.getAsBoolean()) { System.out.println("PASS: "+label); return; }
             Thread.sleep(25);
         }
+        for(Node node:nodes) System.out.println("DIAGNOSTIC "+node.name+" status="+node.adapterStatus+" commits="+node.commits
+            +" layout="+(node.saved==null?"none":node.saved.encode())+" notices="+node.notices);
         throw new AssertionError("Timed out: "+label);
     }
     private static boolean same(Node... values)
@@ -190,10 +196,31 @@ public final class PartyRelaySmoke
             await("new shared party joined after offline edit",() -> nodes.stream().allMatch(n -> n.party.getLocalMember()!=null && n.party.getMembers().size()==3));
             for(Node node:nodes) node.identify();
             await("adapter offline host edit syncs without toggling settings",() -> second.adapter.canEdit() && third.adapter.canEdit() && same(host,second,third) && third.saved.itemAt(26)==27277);
+            Node fourth=new Node("fourth",rejoinParty,null);
+            await("fresh fourth connection joined",() -> nodes.stream().allMatch(n -> n.party.getLocalMember()!=null && n.party.getMembers().size()==4));
+            for(Node node:nodes) node.identify();
+            await("four clients identified",() -> nodes.stream().allMatch(n -> n.party.getMembers().stream().allMatch(m -> m.isLoggedIn())));
+            PartyData logout=new PartyData(); logout.setCharacterName(""); third.party.send(logout);
+            when(third.client.getGameState()).thenReturn(GameState.LOGIN_SCREEN);
+            long offlineMember=third.party.getLocalMember().getMemberId();
+            await("non-host logout reached all four Party rosters",() -> nodes.stream().allMatch(n -> !n.party.getMemberById(offlineMember).isLoggedIn()));
+            fourth.startAdapter();
+            await("fresh fourth member syncs while another member is logged out",() -> fourth.adapter.canEdit() && same(host,second,fourth));
+            fourth.saved=StorageLayout.decode(Files.readString(fourth.file)); fourth.startAdapter();
+            await("restarted follower adapter restores persisted layout and reconnects",() -> fourth.adapter.canEdit() && same(host,second,fourth));
+            host.saved=StorageLayout.decode(Files.readString(host.file)); host.startAdapter();
+            long secondBefore=second.commits, fourthBefore=fourth.commits;
+            second.adapter.requestLayout(); fourth.adapter.requestLayout();
+            await("restarted host adapter sends saved layout after fresh handshake",() -> second.commits>secondBefore && fourth.commits>fourthBefore
+                && second.adapter.canEdit() && fourth.adapter.canEdit() && same(host,second,fourth));
+            if(!fourth.adapter.move(26,28,27277)) throw new AssertionError("fresh fourth member drag rejected");
+            await("fresh fourth member edits converge after adapter restarts",() -> fourth.adapter.canEdit() && same(host,second,fourth) && host.saved.itemAt(28)==27277);
             String report="Real RuneLite WSClient + PartyService: 3 independent connections.\n"
                 +"Passed initial sync, host drag, follower drag, concurrent conflict, disconnect, offline edit and reconnect.\n"
                 +"Relay retains disconnected roster entries; follower liveness timeout passed.\n"
                 +"Production PartyLayoutSync adapter + real PartyDataService: host/follower edits and offline edit then new shared party passed.\n"
+                +"Fourth independent connection: first sync with a logged-out group member, persisted follower/host adapter restart, and subsequent shared edit passed.\n"
+                +"Adapter restart retains its transport; full client process restart is covered only by mocked tests.\n"
                 +"Synthetic names, items and mocked GIM roster only. No game login, UI or item transactions exercised.\n";
             Files.writeString(output.resolve("result.txt"),report); System.out.println(report);
         }

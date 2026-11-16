@@ -111,7 +111,7 @@ final class PartyLayoutSync
         if(clan==null || clan.getName()==null || clan.getMembers()==null)
         { unavailable("Sync waiting for your Group Ironman roster."); return; }
         if(!party.isInParty() || party.getLocalMember()==null)
-        { unavailable("Enable RuneLite Party and join the same private party on all three clients."); return; }
+        { unavailable("Enable RuneLite Party and join the same private party on each participating client."); return; }
         Set<String> roster=new HashSet<>();
         clan.getMembers().forEach(member -> roster.add(normalize(member.getName())));
         PartyMember local=party.getLocalMember(), leader=null;
@@ -119,16 +119,23 @@ final class PartyLayoutSync
         for(PartyMember member:new ArrayList<>(party.getMembers()))
         {
             String name=normalize(member.getDisplayName());
-            if(!member.isLoggedIn() || !roster.contains(name))
-            { unavailable("Sync paused: every party member must be logged into this GIM group. Use a private group party."); return; }
+            if(name.isEmpty())
+            { unavailable("Waiting for RuneLite Party to identify a member. If this entry stays unknown, rejoin a fresh private party."); return; }
+            if(!roster.contains(name))
+            { unavailable("Sync paused: party member "+name+" is not in your GIM roster. Use a private group party."); return; }
+            // Party can retain logged-out group members. They neither block the
+            // online host/followers nor remain eligible to send layout messages.
+            if(!member.isLoggedIn()) continue;
             if(name.equals(normalize(hostName)))
             {
-                if(leader!=null) { unavailable("Sync paused: duplicate host name in party."); return; }
+                if(leader!=null)
+                { unavailable("Sync paused: duplicate host name in party. RuneLite Party lists two online entries for "+hostName+". Close the old client; if the entry persists after restarting, have the online group rejoin a fresh private party. Your saved layout is kept."); return; }
                 leader=member;
             }
             allowed.add(member.getMemberId());
         }
-        if(!normalize(local.getDisplayName()).equals(normalize(client.getLocalPlayer().getName())))
+        if(!local.isLoggedIn() || !allowed.contains(local.getMemberId())
+            || !normalize(local.getDisplayName()).equals(normalize(client.getLocalPlayer().getName())))
         { unavailable("Waiting for Party to update your character name."); return; }
         if(leader==null) { unavailable("Host "+hostName+" is offline or absent. Saved layout remains available; shared edits are paused."); return; }
         String group=normalize(clan.getName());

@@ -11,8 +11,9 @@ showing native order. Install **Group Storage Layouts** from RuneLite's Plugin H
 
 1. Open group storage with search cleared and at least two populated rows so the
    plugin can learn the grid spacing.
-2. Open the gold grid sidebar panel and click **Capture current arrangement**.
-   Capturing again replaces the saved layout.
+2. For a new local layout, open the gold grid sidebar panel and click
+   **Capture current arrangement**. Followers of an existing shared layout should
+   use Automatic sharing below instead. Capturing again replaces the saved layout.
 3. Check **Arrange layout**. Drag items or faded placeholders. Occupied positions
    swap; blank positions preserve gaps. Two extra rows provide expansion space.
 4. Turn Arrange off to withdraw/deposit normally. Use the game's **Save** button
@@ -30,6 +31,23 @@ separate positions. Layouts save per RuneScape character profile.
 
 **Show saved layout** off restores the native view without deleting your layout.
 Search temporarily uses the native view; clear it to resume the layout.
+
+## Restarting or using a fresh client
+
+A normal restart reloads the saved layout and sync settings for the same character
+in the same RuneLite configuration profile. Do not capture again. Once received,
+the layout stays available locally when the host is offline; shared edits wait
+for the host to reconnect.
+
+On a new installation, computer or configuration profile without that saved copy,
+enable sync, enter the same host name, apply once, and join the same RuneLite Party
+as the online host. Followers receive and save the host's layout without capturing
+or importing. Entering a host name alone does not establish a connection.
+
+First use still needs enough visible native storage cells to verify grid spacing
+(normally two populated rows). Version 0.2.5 saves that spacing as soon as learned,
+so later restarts can display even sparse or empty storage. Invalid cached spacing
+no longer prevents an otherwise valid layout from loading.
 
 ## Manual sharing
 
@@ -79,8 +97,10 @@ Changing hosts adopts the new host's saved layout.
 
 - Uses RuneLite's existing Party service; no separate server. The plugin does not
   create parties or change membership.
-- Every party member must be logged into a character on the same GIM roster.
-  Unknown, logged-out or unrelated members pause sharing. Use a private group party.
+- Every identified party member must belong to the same GIM roster. Logged-out
+  group members do not block syncing between the online host and followers.
+  The configured host must still be online. Unknown or unrelated party members
+  pause sharing; the status explains which case applies. Use a private group party.
 - Party names are client-reported, not Jagex identity authentication. Keep the
   passphrase private and invite only trusted teammates.
 - Messages contain the GIM group name, item IDs, positions and sync metadata, not

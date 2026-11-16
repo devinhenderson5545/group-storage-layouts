@@ -2,7 +2,7 @@
 
 ## Automated tests
 
-66 JUnit tests cover the model, geometry, native widget integration, input handling,
+76 JUnit tests cover the model, geometry, native widget integration, input handling,
 Party membership adapter and revision protocol. Game APIs and containers are mocked;
 tests do not log in or perform game actions.
 
@@ -28,6 +28,40 @@ safety, and three protocol participants converging after a follower discovers ne
 items. The host's grid width controls shared placement. `gradlew test jar` passed
 with 66 tests. This version has not been tested in the live game or on the real
 Party relay; the relay evidence below predates this change.
+
+Version 0.2.5 regression tests reproduce a fourth member joining with SneezerDwarf
+online as host and Doc Sultan retained in the party but logged out. They also
+check that a non-host logout preserves the host session, offline senders are
+rejected, rejoining members resume, a logged-out configured host still pauses
+followers, and unknown party entries cannot bypass roster checks. The regression
+failed on 0.2.4 before the fix. Additional restart coverage checks loading a saved
+layout after login without recapture, a new host member ID replacing a retained
+logged-out entry, and pausing for two apparently online hosts. All 76 tests and
+`gradlew test jar` pass after the fix. These are mocked regression tests, not
+verification of the teammates' reported live restart issue.
+
+The fresh-client audit additionally reproduced and fixed two persistence defects:
+geometry learned after receiving a shared layout was not always saved, and a
+malformed geometry string discarded an otherwise valid layout in memory. Tests
+now verify first sync without capture, saved geometry surviving a fresh plugin
+instance with sparse storage, malformed geometry preserving layout positions,
+and continued native withdrawals after the host leaves. The initial first-sync
+test reads saved sync settings automatically without pressing Apply again.
+
+## Version 0.2.5 real relay rerun — 2026-11-15
+
+`gradlew partyRelaySmoke` passed using four independent real Party connections
+with synthetic names/items and a mocked GIM roster. A fourth connection with no
+saved layout joined, received its first layout while another member was logged
+out, and saved it. Restarting the follower and host sync adapters from persisted
+layouts completed fresh handshakes; a subsequent fourth-member drag converged
+across the online clients. These adapter restarts retained their transports;
+they do not prove full OS-process restart behavior or real game UI behavior.
+
+The initial extended test moved before verifying acceptance of the restarted
+host's session and correctly encountered stale-edit rejection. The final test
+waits for both followers to accept/persist the new session before exercising a
+new drag; it does not treat a cached ready status as proof of reconnection.
 
 ## Real relay smoke test — 2026-11-15
 

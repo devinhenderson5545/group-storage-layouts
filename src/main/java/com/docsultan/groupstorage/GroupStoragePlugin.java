@@ -83,7 +83,7 @@ public class GroupStoragePlugin extends Plugin
         toolbar.addNavigation(navigation);
         overlays.add(overlay); mouseManager.registerMouseListener(mouse);
         log.info("Group Storage Layouts loaded; gold grid sidebar panel available");
-        clientThread.invokeLater(() -> { loadProfile(); status("Open group storage, then capture its current arrangement."); });
+        clientThread.invokeLater(() -> { loadProfile(); status("Open group storage. Shared layout setup and connection status are below."); });
     }
 
     @Override protected void shutDown()
@@ -105,6 +105,10 @@ public class GroupStoragePlugin extends Plugin
         {
             String saved=config.getRSProfileConfiguration(CONFIG,"layout");
             if(saved!=null) layout=StorageLayout.decode(saved);
+        }
+        catch(IllegalArgumentException ex) { layout=null; status("Saved layout could not be read: "+ex.getMessage()); }
+        try
+        {
             String savedGrid=config.getRSProfileConfiguration(CONFIG,"grid");
             if(savedGrid!=null)
             {
@@ -118,7 +122,7 @@ public class GroupStoragePlugin extends Plugin
                 }
             }
         }
-        catch(IllegalArgumentException ex) { layout=null; grid=null; status("Saved layout could not be read: "+ex.getMessage()); }
+        catch(IllegalArgumentException ex) { grid=null; status("Saved tile spacing could not be read. Layout kept; reopen storage to learn its spacing."); }
         if(sync!=null)
         {
             String host=config.getRSProfileConfiguration(CONFIG,"syncHost");
@@ -293,9 +297,19 @@ public class GroupStoragePlugin extends Plugin
     {
         if(profile==null) throw new IllegalArgumentException("Log in before saving a layout.");
         config.setRSProfileConfiguration(CONFIG,"layout",layout.encode());
+        saveGrid();
+    }
+
+    private void saveGrid()
+    {
+        if(profile==null) return;
         if(grid!=null)
-            config.setRSProfileConfiguration(CONFIG,"grid",String.format(Locale.ROOT,"%d,%d,%d,%d,%d,%d,%d",
-                grid.startX,grid.startY,grid.stepX,grid.stepY,grid.columns,grid.itemWidth,grid.itemHeight));
+        {
+            String value=String.format(Locale.ROOT,"%d,%d,%d,%d,%d,%d,%d",
+                grid.startX,grid.startY,grid.stepX,grid.stepY,grid.columns,grid.itemWidth,grid.itemHeight);
+            if(!value.equals(config.getRSProfileConfiguration(CONFIG,"grid")))
+                config.setRSProfileConfiguration(CONFIG,"grid",value);
+        }
     }
 
     private NativeStorage readNative()
@@ -349,6 +363,9 @@ public class GroupStoragePlugin extends Plugin
         {
             NativeStorage n=readNative();
             grid=inferGrid(n);
+            // Receiving a layout can precede opening storage. Persist geometry as
+            // soon as learned, even if there is no subsequent layout change.
+            saveGrid();
             if(sync!=null && sync.enabled()) sync.observe(n.live.keySet());
             else if(layout.remember(n.live.keySet(),layoutColumns())) save();
             // Unknown items remain usable while waiting for the host to assign shared slots.

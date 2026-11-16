@@ -302,6 +302,94 @@ public class GroupStorageIntegrationTest
         plugin.onClientTick(new ClientTick()); assertNull(plugin.view);
         assertArrayEquals(new int[]{8,0},geometry.get(children[0]));
     }
+    @Test public void coldClientLoadsSavedLayoutAfterLoginWithoutRecapture()
+    {
+        when(config.getRSProfileKey()).thenReturn(null);
+        when(client.getGameState()).thenReturn(GameState.LOGIN_SCREEN);
+        plugin.onClientTick(new ClientTick()); assertNull(plugin.view);
+        when(config.getRSProfileConfiguration("groupstoragelayouts","layout"))
+            .thenReturn("GSL1:200,-1,100,300,400,500,600,700,800,900,1000");
+        when(config.getRSProfileConfiguration("groupstoragelayouts","grid"))
+            .thenReturn("8,0,48,36,8,36,32");
+        when(config.getRSProfileKey()).thenReturn("test-profile");
+        when(client.getGameState()).thenReturn(GameState.LOGGED_IN);
+        plugin.onClientTick(new ClientTick());
+        assertEquals(200,plugin.view.itemAt(0)); assertEquals(-1,plugin.view.itemAt(1));
+        assertEquals(100,plugin.view.itemAt(2)); assertTrue(plugin.view.missing.containsKey(1000));
+        assertArrayEquals(new int[]{8,0},geometry.get(children[1]));
+        assertFalse(withdraw(1,200).isConsumed());
+        verify(config,never()).setRSProfileConfiguration(eq("groupstoragelayouts"),eq("layout"),anyString());
+    }
+    @Test public void firstSyncedLayoutSavesLearnedGridForSparseStorageAfterRestart() throws Exception
+    {
+        Map<String,String> persisted=new HashMap<>();
+        when(config.getRSProfileConfiguration(eq("groupstoragelayouts"),anyString()))
+            .thenAnswer(call -> persisted.get(call.getArgument(1)));
+        doAnswer(call -> { persisted.put(call.getArgument(1),call.getArgument(2)); return null; })
+            .when(config).setRSProfileConfiguration(eq("groupstoragelayouts"),anyString(),anyString());
+        plugin.onClientTick(new ClientTick());
+        String shared="GSL1:200,-1,100,300,400,500,600,700,800,900,1000";
+        plugin.acceptSyncedLayout(StorageLayout.decode(shared));
+        plugin.onClientTick(new ClientTick());
+        assertEquals("8,0,48,36,8,36,32",persisted.get("grid"));
+        // A new plugin object has no remembered geometry or session state.
+        plugin=new GroupStoragePlugin();
+        Object[][] dependencies={{"client",client},{"clientThread",thread},{"config",config},{"itemManager",itemManager}};
+        for(Object[] dependency:dependencies)
+        {
+            java.lang.reflect.Field field=GroupStoragePlugin.class.getDeclaredField((String)dependency[0]);
+            field.setAccessible(true); field.set(plugin,dependency[1]);
+        }
+        plugin.mouse=new StorageMouse(plugin); nativeItems(200);
+        plugin.onClientTick(new ClientTick());
+        assertNotNull(plugin.view); assertEquals(shared,plugin.savedLayout().encode());
+        assertEquals(200,plugin.view.itemAt(0)); assertTrue(plugin.view.missing.containsKey(100));
+        assertFalse(withdraw(0,200).isConsumed());
+    }
+
+    @Test public void malformedGridCannotEraseValidSavedLayout()
+    {
+        String shared="GSL1:200,100,300,400,500,600,700,800,900";
+        when(config.getRSProfileConfiguration("groupstoragelayouts","layout")).thenReturn(shared);
+        when(config.getRSProfileConfiguration("groupstoragelayouts","grid")).thenReturn("8,0,bad,36,8,36,32");
+        plugin.onClientTick(new ClientTick());
+        assertNotNull(plugin.savedLayout()); assertEquals(shared,plugin.savedLayout().encode());
+        assertNotNull(plugin.view); assertEquals(200,plugin.view.itemAt(0));
+    }
+
+    @Test public void freshFollowerLoadsSavedSyncSettingsAndReceivesFirstLayoutWithoutCapture() throws Exception
+    {
+        net.runelite.client.party.PartyService party=mock(net.runelite.client.party.PartyService.class);
+        net.runelite.client.party.PartyMember host=PartyLayoutSyncTest.member(1,"SneezerDwarf");
+        net.runelite.client.party.PartyMember local=PartyLayoutSyncTest.member(4,"FourthMate");
+        Player player=mock(Player.class); when(player.getName()).thenReturn("FourthMate");
+        when(client.getLocalPlayer()).thenReturn(player); when(client.getItemCount()).thenReturn(40000);
+        net.runelite.api.clan.ClanSettings clan=mock(net.runelite.api.clan.ClanSettings.class);
+        net.runelite.api.clan.ClanMember a=mock(net.runelite.api.clan.ClanMember.class), b=mock(net.runelite.api.clan.ClanMember.class);
+        when(a.getName()).thenReturn("SneezerDwarf"); when(b.getName()).thenReturn("FourthMate");
+        when(clan.getMembers()).thenReturn(Arrays.asList(a,b)); when(clan.getName()).thenReturn("Group");
+        when(client.getClanSettings(net.runelite.api.clan.ClanID.GROUP_IRONMAN)).thenReturn(clan);
+        when(party.isInParty()).thenReturn(true); when(party.getPartyId()).thenReturn(55L);
+        when(party.getLocalMember()).thenReturn(local); when(party.getMembers()).thenReturn(Arrays.asList(host,local));
+        when(config.getRSProfileConfiguration("groupstoragelayouts","syncHost")).thenReturn("SneezerDwarf");
+        when(config.getRSProfileConfiguration("groupstoragelayouts","syncEnabled")).thenReturn("true");
+        PartyLayoutSync sync=new PartyLayoutSync(plugin,client,party);
+        java.lang.reflect.Field field=GroupStoragePlugin.class.getDeclaredField("sync"); field.setAccessible(true); field.set(plugin,sync);
+        plugin.onClientTick(new ClientTick()); assertNull(plugin.savedLayout());
+        ArgumentCaptor<GroupStorageLayoutSyncMessage> sent=ArgumentCaptor.forClass(GroupStorageLayoutSyncMessage.class);
+        verify(party).send(sent.capture());
+        String shared="GSL1:200,-1,100,300,400,500,600,700,800,900,1000";
+        GroupStorageLayoutSyncMessage reply=new GroupStorageLayoutSyncMessage();
+        reply.kind="snapshot"; reply.group="group"; reply.session="sneezer";
+        reply.token=sent.getValue().token; reply.layout=shared; reply.setMemberId(1);
+        plugin.onGroupStorageLayoutSyncMessage(reply); plugin.onClientTick(new ClientTick());
+        assertEquals(shared,plugin.savedLayout().encode()); assertEquals(200,plugin.view.itemAt(0));
+        verify(config).setRSProfileConfiguration("groupstoragelayouts","layout",shared);
+        // Host may leave after sync; last saved positions remain usable.
+        when(party.getMembers()).thenReturn(Collections.singletonList(local));
+        sync.requestLayout(); plugin.onClientTick(new ClientTick());
+        assertEquals(shared,plugin.savedLayout().encode()); assertFalse(withdraw(1,200).isConsumed());
+    }
     @Test public void sparseNativeSlotsNeverChangeTheLearnedGridSpacing()
     {
         plugin.capture(); plugin.onScriptPreFired(new ScriptPreFired(ScriptID.GROUP_IRONMAN_STORAGE_BUILD));

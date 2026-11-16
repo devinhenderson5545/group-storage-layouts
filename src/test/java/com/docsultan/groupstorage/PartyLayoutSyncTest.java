@@ -79,6 +79,88 @@ public class PartyLayoutSyncTest
         adapter.configure(true,"Doc Sultan"); adapter.tick();
         verify(party,never()).send(any(GroupStorageLayoutSyncMessage.class)); assertFalse(adapter.canEdit());
     }
+    @Test public void fourthMemberCanSyncWithOnlineSneezerWhileDocSultanIsOffline()
+    {
+        PartyMember sneezer=member(3,"SneezerDwarf"), fourth=member(4,"FourthMate");
+        ClanMember c=mock(ClanMember.class),d=mock(ClanMember.class);
+        when(c.getName()).thenReturn("SneezerDwarf"); when(d.getName()).thenReturn("FourthMate");
+        List<ClanMember> roster=new ArrayList<>(clan.getMembers()); roster.add(c); roster.add(d);
+        when(clan.getMembers()).thenReturn(roster);
+        when(host.isLoggedIn()).thenReturn(false);
+        when(player.getName()).thenReturn("FourthMate"); when(party.getLocalMember()).thenReturn(fourth);
+        when(party.getMembers()).thenReturn(Arrays.asList(host,follower,sneezer,fourth));
+        adapter.configure(true,"SneezerDwarf"); adapter.tick();
+        ArgumentCaptor<GroupStorageLayoutSyncMessage> sent=ArgumentCaptor.forClass(GroupStorageLayoutSyncMessage.class);
+        verify(party).send(sent.capture());
+        GroupStorageLayoutSyncMessage reply=new GroupStorageLayoutSyncMessage();
+        reply.kind="snapshot"; reply.group="group"; reply.session="sneezer-session";
+        reply.token=sent.getValue().token; reply.layout="GSL1:200,100"; reply.setMemberId(3);
+        adapter.receive(reply,adapter.generation);
+        assertTrue(adapter.canEdit());
+        verify(plugin).syncStatus(eq("Synced with SneezerDwarf."),eq(true),eq("SneezerDwarf"));
+    }
+
+    @Test public void nonHostLogoutKeepsHostSessionButRejectsOfflineMemberMessages()
+    {
+        when(player.getName()).thenReturn("Doc Sultan"); when(party.getLocalMember()).thenReturn(host);
+        adapter.configure(true,"Doc Sultan"); adapter.tick(); long generation=adapter.generation;
+        when(follower.isLoggedIn()).thenReturn(false);
+        assertTrue(adapter.canEdit()); assertEquals(generation,adapter.generation);
+        GroupStorageLayoutSyncMessage request=new GroupStorageLayoutSyncMessage();
+        request.kind="get"; request.group="group"; request.token="offline"; request.setMemberId(2);
+        adapter.receive(request,adapter.generation);
+        verify(party,never()).send(any(GroupStorageLayoutSyncMessage.class));
+        when(follower.isLoggedIn()).thenReturn(true);
+        adapter.receive(request,adapter.generation);
+        verify(party).send(any(GroupStorageLayoutSyncMessage.class));
+        assertEquals(generation,adapter.generation);
+    }
+
+    @Test public void loggedOutConfiguredHostStillPausesFollower()
+    {
+        GroupStorageLayoutSyncMessage reply=handshake(); adapter.receive(reply,adapter.generation);
+        when(host.isLoggedIn()).thenReturn(false);
+        assertFalse(adapter.canEdit()); adapter.requestLayout();
+        verify(plugin).syncStatus(contains("Host Doc Sultan is offline or absent"),eq(true),eq("Doc Sultan"));
+    }
+
+    @Test public void restartedHostWithNewMemberIdCanReplaceLoggedOutPartyEntry()
+    {
+        GroupStorageLayoutSyncMessage old=handshake(); adapter.receive(old,adapter.generation);
+        when(host.isLoggedIn()).thenReturn(false);
+        PartyMember restarted=member(3,"Doc Sultan");
+        when(party.getMembers()).thenReturn(Arrays.asList(host,follower,restarted));
+        adapter.requestLayout();
+        ArgumentCaptor<GroupStorageLayoutSyncMessage> sent=ArgumentCaptor.forClass(GroupStorageLayoutSyncMessage.class);
+        verify(party,times(2)).send(sent.capture());
+        assertFalse(adapter.canEdit());
+        GroupStorageLayoutSyncMessage reply=new GroupStorageLayoutSyncMessage();
+        reply.kind="snapshot"; reply.group="group"; reply.session="restarted-host";
+        reply.token=sent.getValue().token; reply.layout="GSL1:100,-1,200"; reply.setMemberId(3);
+        adapter.receive(reply,adapter.generation); assertTrue(adapter.canEdit());
+        verify(plugin,times(2)).acceptSyncedLayout(any(StorageLayout.class));
+        adapter.receive(old,adapter.generation);
+        verify(plugin,times(2)).acceptSyncedLayout(any(StorageLayout.class));
+    }
+
+    @Test public void twoApparentlyOnlineHostsPauseRatherThanChoosingAnArbitraryLayout()
+    {
+        PartyMember duplicate=member(3,"Doc Sultan");
+        when(party.getMembers()).thenReturn(Arrays.asList(host,follower,duplicate));
+        adapter.configure(true,"Doc Sultan"); adapter.tick();
+        verify(plugin).syncStatus(contains("duplicate host name"),eq(true),eq("Doc Sultan"));
+        verify(party,never()).send(any(GroupStorageLayoutSyncMessage.class));
+        assertFalse(adapter.canEdit());
+    }
+
+    @Test public void unidentifiedOfflinePartyEntryDoesNotBypassRosterCheck()
+    {
+        PartyMember unknown=member(3,"<unknown>"); when(unknown.isLoggedIn()).thenReturn(false);
+        when(party.getMembers()).thenReturn(Arrays.asList(host,follower,unknown));
+        adapter.configure(true,"Doc Sultan"); adapter.tick();
+        verify(party,never()).send(any(GroupStorageLayoutSyncMessage.class));
+        assertFalse(adapter.canEdit());
+    }
     @Test public void untrustedSenderCannotApplySnapshot()
     {
         GroupStorageLayoutSyncMessage m=handshake(); m.setMemberId(99); adapter.receive(m,adapter.generation);
