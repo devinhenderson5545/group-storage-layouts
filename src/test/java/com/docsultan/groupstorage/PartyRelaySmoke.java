@@ -215,12 +215,17 @@ public final class PartyRelaySmoke
                 && second.adapter.canEdit() && fourth.adapter.canEdit() && same(host,second,fourth));
             if(!fourth.adapter.move(26,28,27277)) throw new AssertionError("fresh fourth member drag rejected");
             await("fresh fourth member edits converge after adapter restarts",() -> fourth.adapter.canEdit() && same(host,second,fourth) && host.saved.itemAt(28)==27277);
+            if(!fourth.adapter.release(28,27277)) throw new AssertionError("follower release rejected");
+            await("follower placeholder release acknowledged across online clients",() -> fourth.adapter.canEdit() && same(host,second,fourth) && host.saved.positionOf(27277)<0);
+            fourth.adapter.observe(Arrays.asList(4151,11806,27277)); fourth.adapter.requestLayout();
+            await("genuinely observed item can return after release",() -> same(host,second,fourth) && host.saved.positionOf(27277)>=0);
             String report="Real RuneLite WSClient + PartyService: 3 independent connections.\n"
                 +"Passed initial sync, host drag, follower drag, concurrent conflict, disconnect, offline edit and reconnect.\n"
                 +"Relay retains disconnected roster entries; follower liveness timeout passed.\n"
                 +"Production PartyLayoutSync adapter + real PartyDataService: host/follower edits and offline edit then new shared party passed.\n"
                 +"Fourth independent connection: first sync with a logged-out group member, persisted follower/host adapter restart, and subsequent shared edit passed.\n"
                 +"Adapter restart retains its transport; full client process restart is covered only by mocked tests.\n"
+                +"Follower release acknowledgement and re-adding a newly observed item after release passed.\n"
                 +"Synthetic names, items and mocked GIM roster only. No game login, UI or item transactions exercised.\n";
             Files.writeString(output.resolve("result.txt"),report); System.out.println(report);
         }

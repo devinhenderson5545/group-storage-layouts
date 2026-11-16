@@ -6,6 +6,15 @@ import static org.junit.Assert.*;
 
 public class StorageLayoutTest
 {
+    @Test public void releaseKeepsInternalPositionsAndRedepositStartsNewRow()
+    {
+        StorageLayout l=new StorageLayout(Arrays.asList(100,200,300));
+        l.release(1); assertEquals(Arrays.asList(100,-1,300),l.items());
+        StorageLayout reloaded=StorageLayout.decode(l.encode());
+        reloaded.remember(Arrays.asList(200));
+        assertEquals(300,reloaded.itemAt(2)); assertEquals(200,reloaded.itemAt(8));
+        reloaded.release(8); assertEquals(Arrays.asList(100,-1,300),reloaded.items());
+    }
     @Test public void withdrawalReturnAndShuffledServerOrderKeepPositions()
     {
         StorageLayout l=new StorageLayout(Arrays.asList(100,200,300));

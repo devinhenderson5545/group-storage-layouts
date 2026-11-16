@@ -228,6 +228,17 @@ public class PartyLayoutSyncTest
         adapter.observe(Arrays.asList(300));
         verify(plugin,never()).acceptSyncedLayout(any()); verify(party,never()).send(any(GroupStorageLayoutSyncMessage.class));
     }
+    @Test public void offlineHostCanReleaseButOfflineFollowerCannot()
+    {
+        when(party.isInParty()).thenReturn(false); adapter.configure(true,"Doc Sultan");
+        assertFalse(adapter.release(1,200)); verify(plugin,never()).acceptSyncedLayout(any());
+        when(player.getName()).thenReturn("Doc Sultan");
+        assertTrue(adapter.release(1,200));
+        ArgumentCaptor<StorageLayout> saved=ArgumentCaptor.forClass(StorageLayout.class);
+        verify(plugin).acceptSyncedLayout(saved.capture());
+        assertEquals("GSL1:100",saved.getValue().encode());
+        verify(party,never()).send(any(GroupStorageLayoutSyncMessage.class));
+    }
     @Test public void hostCanEditAfterLeavingAndCannotEditAsDifferentCharacter()
     {
         when(player.getName()).thenReturn("Doc Sultan"); when(party.getLocalMember()).thenReturn(host);

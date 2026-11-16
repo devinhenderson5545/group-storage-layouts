@@ -6,6 +6,45 @@ import static org.junit.Assert.*;
 
 public class LayoutSyncTest
 {
+    @Test public void followerReleaseWaitsForHostAndKeepsOtherPositions()
+    {
+        Node a=new Node(1,true,100,200,300),b=new Node(2,false),c=new Node(3,false);
+        connect(b,c);
+        assertTrue(b.sync.release(1,200)); assertEquals(200,b.saved.itemAt(1));
+        assertTrue(b.sync.pending()); flush(); equal(a,b,c);
+        assertEquals(Arrays.asList(100,-1,300),a.saved.items()); assertFalse(b.sync.pending());
+    }
+    @Test public void staleOrDuplicateReleaseCannotRemoveAnotherItem()
+    {
+        Node a=new Node(1,true,100,200,300),b=new Node(2,false); connect(b);
+        assertTrue(b.sync.release(1,200)); GroupStorageLayoutSyncMessage release=network.remove();
+        assertTrue(a.sync.move(1,2,200)); network.add(release); flush(); equal(a,b);
+        assertEquals(300,a.saved.itemAt(1)); assertEquals(200,a.saved.itemAt(2));
+        assertFalse(b.sync.pending()); assertEquals(1,b.notices.size());
+        assertTrue(b.sync.release(2,200)); GroupStorageLayoutSyncMessage duplicate=network.peek();
+        network.add(duplicate); flush(); equal(a,b);
+        assertEquals(Arrays.asList(100,300),a.saved.items());
+        assertFalse(a.sync.release(1,200));
+    }
+    @Test public void delayedObservationCannotResurrectReleaseButNewDepositCan()
+    {
+        Node a=new Node(1,true,100,200,300),b=new Node(2,false),c=new Node(3,false); connect(b,c);
+        c.sync.observe(Arrays.asList(100,200,300)); c.sync.requestLayout();
+        GroupStorageLayoutSyncMessage delayed=network.remove();
+        assertTrue(b.sync.release(1,200)); flush(); equal(a,b,c);
+        network.add(delayed); flush();
+        c.sync.requestLayout(); flush(); equal(a,b,c);
+        assertEquals(-1,a.saved.positionOf(200));
+        c.sync.observe(Arrays.asList(100,200,300)); c.sync.requestLayout(); flush(); equal(a,b,c);
+        assertEquals(200,a.saved.itemAt(8));
+    }
+    @Test public void hostReleaseDropsItsOwnCachedObservationAndOfflineFollowerCannotRelease()
+    {
+        Node a=new Node(1,true,100,200),b=new Node(2,false); connect(b);
+        a.sync.observe(Arrays.asList(100,200)); assertTrue(a.sync.release(1,200)); flush(); equal(a,b);
+        now+=LayoutSync.TIMEOUT_MS; assertFalse(b.sync.release(0,100));
+        assertEquals(100,b.saved.itemAt(0));
+    }
     long now=1000;
     final List<Node> nodes=new ArrayList<>();
     final Deque<GroupStorageLayoutSyncMessage> network=new ArrayDeque<>();
@@ -156,6 +195,9 @@ public class LayoutSyncTest
         Node a=new Node(1,true,100,-1,200), b=new Node(2,false), c=new Node(3,false);
         b.sync.observe(Arrays.asList(100,300)); c.sync.observe(Arrays.asList(300,400));
         connect(b,c); equal(a,b,c);
+        // Initial handshakes establish the current session before observations
+        // can mutate the host layout. Retry against each accepted revision.
+        b.sync.requestLayout(); flush(); c.sync.requestLayout(); flush(); equal(a,b,c);
         assertEquals(100,a.saved.itemAt(0)); assertEquals(-1,a.saved.itemAt(1));
         assertEquals(200,a.saved.itemAt(2)); assertEquals(300,a.saved.itemAt(8));
         assertEquals(400,a.saved.itemAt(16));

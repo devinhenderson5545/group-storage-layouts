@@ -45,7 +45,7 @@ final class StoragePanel extends PluginPanel
         add(new JScrollPane(share));
         JButton importButton=new JButton("Import layout from text box");
         importButton.addActionListener(e -> plugin.importLayout(share.getText())); add(importButton);
-        add(new JLabel("<html><br>Manual export/import is still available.<br>While synced, only the host can import<br>or capture a replacement layout.<br><br>Different charges/doses use separate slots.<br>Search temporarily uses the native view.</html>"));
+        add(new JLabel("<html><br>Right-click an empty placeholder and choose <b>Release</b> to remove it. Works with Arrange on or off. Shared releases wait for the host; everyone should update to 0.2.6 or newer.<br><br>Manual export/import is still available.<br>While synced, only the host can import<br>or capture a replacement layout.<br><br>Different charges/doses use separate slots.<br>Search temporarily uses the native view.</html>"));
         JButton diagnostics=new JButton("Log storage diagnostics");
         diagnostics.addActionListener(e -> plugin.diagnostics()); add(diagnostics);
     }

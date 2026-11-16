@@ -32,6 +32,21 @@ separate positions. Layouts save per RuneScape character profile.
 **Show saved layout** off restores the native view without deleting your layout.
 Search temporarily uses the native view; clear it to resume the layout.
 
+### Release an empty placeholder
+
+Right-click a faded zero-quantity placeholder and choose **Release**. This works
+with Arrange on or off, removes only its saved position, and leaves other item
+positions unchanged. Trailing empty slots are trimmed. Stored items cannot be
+released, and a stale menu is rejected if the layout changes or the item returns.
+Returning a released item later treats it as a new item and puts it below the
+last occupied row.
+
+With Party sync enabled, a follower's release waits for host acknowledgement and
+then updates the group layout. The host can release offline and sync on rejoining;
+offline followers cannot change the shared layout. Update everyone, especially
+the host, to **0.2.6 or newer** for shared releases. Old hosts do not handle release
+requests. This is a visual layout action, not an in-game storage transaction.
+
 ## Restarting or using a fresh client
 
 A normal restart reloads the saved layout and sync settings for the same character

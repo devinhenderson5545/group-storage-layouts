@@ -1,8 +1,25 @@
 # Verification
 
+## Version 0.2.6 — Release placeholders
+
+86 JUnit tests pass with `gradlew test jar`. New coverage verifies the Release
+menu and callback, exclusion of live items and cell gaps, stale menus and items
+returned before a rebuild, right-click/menu selection during Arrange mode,
+preserving other positions, re-deposit placement, host/follower acknowledgement,
+offline-host behavior, stale/duplicate release requests and stale observation
+reports that must not resurrect a released placeholder. Initial item reports now
+wait for a current host session/revision before changing its layout.
+
+On 2026-11-16, `gradlew partyRelaySmoke` passed through the real RuneLite Party
+service with four independent synthetic connections, including follower release
+acknowledgement and subsequently re-adding a genuinely observed item. Normal
+storage menu rendering has not yet been verified in a logged-in game client.
+Everyone should use 0.2.6 or newer for shared releases; older hosts ignore the new
+request type.
+
 ## Automated tests
 
-76 JUnit tests cover the model, geometry, native widget integration, input handling,
+86 JUnit tests cover the model, geometry, native widget integration, input handling,
 Party membership adapter and revision protocol. Game APIs and containers are mocked;
 tests do not log in or perform game actions.
 

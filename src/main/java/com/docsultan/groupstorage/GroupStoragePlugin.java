@@ -179,6 +179,45 @@ public class GroupStoragePlugin extends Plugin
         }
     }
 
+    boolean isMenuOpen() { return client.isMenuOpen(); }
+
+    @Subscribe public void onMenuOpened(MenuOpened event)
+    {
+        StorageView current=view;
+        net.runelite.api.Point point=client.getMouseCanvasPosition();
+        if(stopped || current==null || point==null) return;
+        int slot=current.slotAt(point.getX(),point.getY());
+        int item=current.itemAt(slot);
+        if(item<=0 || !current.missing.containsKey(item) || !current.cell(slot).contains(point.getX(),point.getY())) return;
+        ItemComposition composition=itemManager.getItemComposition(item);
+        String name=composition==null?"Placeholder":composition.getName();
+        client.createMenuEntry(-1).setOption("Release").setTarget(net.runelite.client.util.ColorUtil.wrapWithColorTag(name,Color.ORANGE))
+            .setType(MenuAction.RUNELITE).setParam0(slot).setParam1(-1)
+            .onClick(entry -> release(slot,item,current.epoch));
+    }
+
+    void release(int slot,int item,long expectedEpoch)
+    {
+        clientThread.invokeLater(() -> {
+            if(stopped || view==null || view.epoch!=expectedEpoch || layout==null || layout.itemAt(slot)!=item
+                || !view.missing.containsKey(item)) { status("Layout changed. Right-click the placeholder again."); return; }
+            // Check the current native container too: it may have changed since the menu opened.
+            ItemContainer storage=client.getItemContainer(InventoryID.INV_GROUP_TEMP);
+            if(client.getGameState()!=GameState.LOGGED_IN || appliedContainer==null || appliedContainer.isHidden() || storage==null) return;
+            for(Item live:storage.getItems()) if(live.getId()==item && live.getQuantity()>0)
+            { status("That item is back in storage. Only empty placeholders can be released."); return; }
+            if(sync!=null && sync.enabled())
+            {
+                if(!sync.release(slot,item)) status("Shared editing is paused. Wait for the host to sync or confirm your previous edit.");
+                else { apply(); status(layout.positionOf(item)<0?"Placeholder released. Other saved positions were kept.":
+                    "Release requested. Waiting for the host to confirm; the host also needs the Release update."); }
+                return;
+            }
+            layout.release(slot); save(); restore(); apply();
+            status("Placeholder released. Other saved positions were kept.");
+        });
+    }
+
     void capture()
     {
         clientThread.invokeLater(() -> {

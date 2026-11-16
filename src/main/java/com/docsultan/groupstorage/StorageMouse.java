@@ -13,6 +13,7 @@ final class StorageMouse implements MouseListener
     volatile Point pointer;
     volatile int dragSlot=-1;
     private boolean captured;
+    private boolean passThrough;
 
     StorageMouse(GroupStoragePlugin plugin) { this.plugin=plugin; }
     void cancel() { pressedView=null; source=-1; press=null; dragSlot=-1; }
@@ -20,6 +21,10 @@ final class StorageMouse implements MouseListener
     @Override public MouseEvent mousePressed(MouseEvent e)
     {
         StorageView v=plugin.view;
+        int slot=v==null?-1:v.slotAt(e.getX(),e.getY());
+        passThrough=plugin.isMenuOpen() || (e.getButton()==MouseEvent.BUTTON3 && v!=null
+            && v.missing.containsKey(v.itemAt(slot)) && v.cell(slot).contains(e.getPoint()));
+        if(passThrough) return e; // Let the native context menu open and accept its selection.
         if(v!=null && v.arranging && v.bounds.contains(e.getPoint()))
         {
             captured=true;
@@ -34,6 +39,7 @@ final class StorageMouse implements MouseListener
     }
     @Override public MouseEvent mouseReleased(MouseEvent e)
     {
+        if(passThrough) return e;
         if(captured)
         {
             e.consume(); captured=false;
@@ -55,6 +61,7 @@ final class StorageMouse implements MouseListener
     }
     @Override public MouseEvent mouseClicked(MouseEvent e)
     {
+        if(passThrough) { passThrough=false; return e; }
         StorageView v=plugin.view;
         if(v!=null && v.arranging && v.bounds.contains(e.getPoint())) e.consume();
         return e;

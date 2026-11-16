@@ -55,6 +55,59 @@ public class GroupStorageIntegrationTest
         nativeItems(100,200,300,400,500,600,700,800,900);
     }
 
+    @Test public void rightClickPlaceholderOffersReleaseAndClickKeepsOtherPositions()
+    {
+        plugin.capture(); rebuild(100,300,400,500,600,700,800,900);
+        when(client.getMouseCanvasPosition()).thenReturn(new net.runelite.api.Point(260,110));
+        ItemComposition item=mock(ItemComposition.class); when(item.getName()).thenReturn("Test item");
+        when(itemManager.getItemComposition(200)).thenReturn(item);
+        MenuEntry entry=mock(MenuEntry.class,RETURNS_SELF); when(client.createMenuEntry(-1)).thenReturn(entry);
+        plugin.onMenuOpened(new MenuOpened());
+        verify(entry).setOption("Release"); verify(entry).setType(MenuAction.RUNELITE);
+        ArgumentCaptor<java.util.function.Consumer<MenuEntry>> clicked=ArgumentCaptor.forClass(java.util.function.Consumer.class);
+        verify(entry).onClick(clicked.capture()); clicked.getValue().accept(entry);
+        assertEquals(-1,plugin.savedLayout().itemAt(1)); assertEquals(300,plugin.savedLayout().itemAt(2));
+        assertFalse(plugin.view.missing.containsKey(200)); assertFalse(withdraw(1,300).isConsumed());
+    }
+
+    @Test public void releaseMenuIsNotOfferedForLiveItemOrCellGap()
+    {
+        plugin.capture(); when(client.getMouseCanvasPosition()).thenReturn(new net.runelite.api.Point(260,110));
+        plugin.onMenuOpened(new MenuOpened());
+        rebuild(100,300,400,500,600,700,800,900);
+        when(client.getMouseCanvasPosition()).thenReturn(new net.runelite.api.Point(295,110));
+        plugin.onMenuOpened(new MenuOpened()); verify(client,never()).createMenuEntry(anyInt());
+    }
+
+    @Test public void releaseRejectsStaleMenuAndItemReturnedBeforeRebuild()
+    {
+        plugin.capture(); rebuild(100,300,400,500,600,700,800,900);
+        long epoch=plugin.view.epoch;
+        plugin.acceptSyncedLayout(StorageLayout.decode(plugin.savedLayout().encode())); plugin.onClientTick(new ClientTick());
+        plugin.release(1,200,epoch); assertEquals(200,plugin.savedLayout().itemAt(1));
+        epoch=plugin.view.epoch;
+        nativeItems(200,100,300,400,500,600,700,800,900); // item update before the next view rebuild
+        plugin.release(1,200,epoch); assertEquals(200,plugin.savedLayout().itemAt(1));
+    }
+
+    @Test public void arrangeModeAllowsPlaceholderContextMenuAndMenuSelectionButBlocksStoredItemClicks()
+    {
+        plugin.capture(); rebuild(100,300,400,500,600,700,800,900); plugin.setArrange(true);
+        Canvas canvas=new Canvas();
+        MouseEvent right=new MouseEvent(canvas,MouseEvent.MOUSE_PRESSED,1,0,260,110,1,false,MouseEvent.BUTTON3);
+        plugin.mouse.mousePressed(right); assertFalse(right.isConsumed());
+        when(client.isMenuOpen()).thenReturn(true);
+        MouseEvent select=new MouseEvent(canvas,MouseEvent.MOUSE_PRESSED,2,0,215,110,1,false,MouseEvent.BUTTON1);
+        plugin.mouse.mousePressed(select); assertFalse(select.isConsumed());
+        when(client.isMenuOpen()).thenReturn(false);
+        MouseEvent released=new MouseEvent(canvas,MouseEvent.MOUSE_RELEASED,3,0,215,110,1,false,MouseEvent.BUTTON1);
+        plugin.mouse.mouseReleased(released); assertFalse(released.isConsumed());
+        MouseEvent clicked=new MouseEvent(canvas,MouseEvent.MOUSE_CLICKED,4,0,215,110,1,false,MouseEvent.BUTTON1);
+        plugin.mouse.mouseClicked(clicked); assertFalse(clicked.isConsumed());
+        MouseEvent stored=new MouseEvent(canvas,MouseEvent.MOUSE_PRESSED,5,0,215,110,1,false,MouseEvent.BUTTON3);
+        plugin.mouse.mousePressed(stored); assertTrue(stored.isConsumed());
+    }
+
     @Test public void repeatedArrangeClicksWithoutLayoutResetCheckbox() throws Exception
     {
         StoragePanel[] panel=new StoragePanel[1];

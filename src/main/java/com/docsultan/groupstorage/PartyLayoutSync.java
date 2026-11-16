@@ -56,6 +56,16 @@ final class PartyLayoutSync
             if(edited.remember(ids,plugin.layoutColumns())) plugin.acceptSyncedLayout(edited);
         }
     }
+    boolean release(int source,int item)
+    {
+        update();
+        if(state!=null) return state.release(source,item);
+        StorageLayout saved=plugin.savedLayout();
+        if(!enabled || !isLocalHost() || saved==null || source<0 || source>=StorageLayout.MAX_SLOTS
+            || item<=0 || saved.itemAt(source)!=item) return false;
+        StorageLayout edited=new StorageLayout(saved.items());
+        edited.release(source); plugin.acceptSyncedLayout(edited); return true;
+    }
     void requestLayout()
     {
         update();
@@ -166,7 +176,7 @@ final class PartyLayoutSync
                 "You are the layout host, but have no saved layout yet. Open group storage and capture its arrangement, or import a layout."):
                 state.hostNeedsLayout()?"Connected to "+hostName+", but they have no saved layout. Ask them to capture or import once. Your saved layout is kept; shared edits are paused.":
                 !state.ready()?"Waiting for "+hostName+" to send a layout. Shared edits are paused. On the host: enable this plugin and sync, apply the same host name, and capture or import a layout if none is saved.":
-                state.pending()?"Waiting for the host to confirm your drag.":"Synced with "+hostName+".";
+                state.pending()?"Waiting for the host to confirm your edit.":"Synced with "+hostName+".";
         String status=enabled && state==null && isLocalHost()
             ? "Host edits are saved locally and will sync when the party connection is ready. "+detail : detail;
         plugin.syncStatus(status,enabled,hostName);

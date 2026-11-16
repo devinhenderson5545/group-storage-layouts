@@ -12,7 +12,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core:4.11.0'
 }
 group = 'com.docsultan.groupstorage'
-version = '0.2.5'
+version = '0.2.6'
 
 test { systemProperty 'user.home', layout.buildDirectory.dir('test-home').get().asFile.absolutePath }
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release.set(11) }

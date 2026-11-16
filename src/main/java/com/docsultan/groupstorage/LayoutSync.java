@@ -93,6 +93,23 @@ final class LayoutSync
         return true;
     }
 
+    boolean release(int source,int item)
+    {
+        if(!ready() || pending!=null || !validRelease(source,item)) return false;
+        forgetObserved(item);
+        if(host)
+        {
+            layout.release(source); revision++; commit(); publish(null,0,null);
+        }
+        else
+        {
+            pending=UUID.randomUUID().toString(); pendingSince=clock.getAsLong();
+            GroupStorageLayoutSyncMessage m=message("release"); m.token=pending;
+            m.source=source; m.item=item; send.accept(m);
+        }
+        return true;
+    }
+
     void receive(GroupStorageLayoutSyncMessage m)
     {
         if(m==null || m.protocol!=1 || !group.equals(m.group) || m.getMemberId()==self
@@ -109,7 +126,10 @@ final class LayoutSync
                     reply.token=m.token; reply.recipient=m.getMemberId(); send.accept(reply);
                     return;
                 }
-                if(m.observed!=null && m.observed.length<=StorageLayout.MAX_SLOTS)
+                // A delayed report from before a release must not resurrect it.
+                // Fresh clients first receive our snapshot, then report their items.
+                if(session.equals(m.session) && revision==m.revision
+                    && m.observed!=null && m.observed.length<=StorageLayout.MAX_SLOTS)
                 {
                     for(int id:m.observed) if(id<=0 || id>1_000_000) return;
                     if(remember(m.observed)) publish(null,0,null);
@@ -123,6 +143,16 @@ final class LayoutSync
                 else
                 {
                     layout.swap(m.source,m.target); revision++; commit();
+                    publish(null,0,null); publish(m.token,m.getMemberId(),null);
+                }
+            }
+            else if("release".equals(m.kind) && m.token!=null && layout!=null)
+            {
+                if(!session.equals(m.session) || revision!=m.revision || !validRelease(m.source,m.item))
+                    publish(m.token,m.getMemberId(),"Layout changed before your edit arrived. Review it and retry.");
+                else
+                {
+                    forgetObserved(m.item); layout.release(m.source); revision++; commit();
                     publish(null,0,null); publish(m.token,m.getMemberId(),null);
                 }
             }
@@ -153,10 +183,22 @@ final class LayoutSync
         if(pending!=null && pending.equals(m.token))
         {
             pending=null;
-            if(m.error!=null) notice.accept("Layout changed before your drag arrived. Review it and retry.");
+            if(m.error!=null) notice.accept("Layout changed before your edit arrived. Review it and retry.");
         }
-        if(update) { layout=incoming; commit(); }
+        if(update)
+        {
+            // Discard cached observations of removed IDs. An open storage view
+            // will report genuinely present items again on its next rebuild.
+            if(layout!=null)
+                for(int id:layout.items()) if(id>0 && incoming.positionOf(id)<0) forgetObserved(id);
+            layout=incoming; commit();
+        }
     }
+
+    private boolean validRelease(int source,int item)
+    { return layout!=null && source>=0 && source<StorageLayout.MAX_SLOTS && item>0 && layout.itemAt(source)==item; }
+    private void forgetObserved(int item)
+    { observed=Arrays.stream(observed).filter(id -> id!=item).toArray(); }
 
     private boolean validMove(int source,int target,int item)
     {
