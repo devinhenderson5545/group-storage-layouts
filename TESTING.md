@@ -2,7 +2,7 @@
 
 ## Automated tests
 
-59 JUnit tests cover the model, geometry, native widget integration, input handling,
+66 JUnit tests cover the model, geometry, native widget integration, input handling,
 Party membership adapter and revision protocol. Game APIs and containers are mocked;
 tests do not log in or perform game actions.
 
@@ -19,6 +19,15 @@ recovery after capture/import, stale or untrusted no-layout replies, restarted h
 host/follower setup messages and Arrange checkbox feedback after rejected clicks or
 applying sync settings with storage closed. `gradlew test jar` passed for this update.
 The earlier real relay smoke test below was not rerun for 0.2.3.
+
+Version 0.2.4 adds next-row placement for newly observed items, ignoring trailing
+empty rows while preserving internal gaps and missing-item placeholders. Tests
+cover moving the last item down and back up, different grid widths, an idempotent
+manual rescan, updates without the storage build event, withdrawal/return index
+safety, and three protocol participants converging after a follower discovers new
+items. The host's grid width controls shared placement. `gradlew test jar` passed
+with 66 tests. This version has not been tested in the live game or on the real
+Party relay; the relay evidence below predates this change.
 
 ## Real relay smoke test — 2026-11-15
 

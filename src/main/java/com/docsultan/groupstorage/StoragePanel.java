@@ -24,10 +24,13 @@ final class StoragePanel extends PluginPanel
         add(Box.createVerticalStrut(12));
         JButton capture=new JButton("Capture current arrangement");
         capture.addActionListener(e -> plugin.capture()); add(capture);
+        JButton addItems=new JButton("Add new storage items");
+        addItems.setToolTipText("Append items currently in storage without replacing your saved layout. Followers ask the host to save shared positions.");
+        addItems.addActionListener(e -> plugin.addNewStorageItems()); add(addItems);
         JCheckBox enabled=new JCheckBox("Show saved layout",true);
         enabled.addActionListener(e -> plugin.setEnabledView(enabled.isSelected())); add(enabled);
         arrange.addActionListener(e -> plugin.setArrange(arrange.isSelected())); add(arrange);
-        add(new JLabel("<html><br>Arrange: drag items or faded placeholders.<br>Occupied slots swap; empty slots keep gaps.<br><br>Turn Arrange off to withdraw/deposit.<br>Use the game's Save button as usual.<br><br></html>"));
+        add(new JLabel("<html><br>New items start on the next row below your last item or placeholder. Trailing empty rows are skipped.<br>Use <b>Add new storage items</b> to rescan without replacing your layout.<br><br>Arrange: drag items or faded placeholders.<br>Occupied slots swap; empty slots keep gaps.<br><br>Turn Arrange off to withdraw/deposit.<br>Use the game's Save button as usual.<br><br></html>"));
         add(new JLabel("<html><b>Shared layout setup</b><br>1. Choose one host. Their saved layout is used.<br>2. Host only: capture storage once, or import the layout you want to share. Skip this if already saved.<br>3. Everyone: join the same private RuneLite Party (GIM membership alone is not enough).<br>4. Everyone: enable sync below, enter that host's character name, then Apply.<br><br></html>"));
         add(syncEnabled); add(new JLabel("Same host name on everyone's client:")); add(host);
         JButton connect=new JButton("Apply sync settings");

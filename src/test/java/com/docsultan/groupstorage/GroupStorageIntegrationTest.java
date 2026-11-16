@@ -88,6 +88,54 @@ public class GroupStorageIntegrationTest
         javax.swing.SwingUtilities.invokeAndWait(() -> assertFalse(arrange.isSelected()));
     }
 
+    @Test public void newDepositWithoutBuildEventAppendsAndKeepsSavedGaps()
+    {
+        plugin.capture(); plugin.setArrange(true);
+        plugin.move(0,12,100,plugin.view.epoch); plugin.setArrange(false);
+        // The same container can get updated children without our build-script hook.
+        nativeItems(1000,100,200,300,400,500,600,700,800,900);
+        plugin.onClientTick(new ClientTick());
+        assertEquals(100,plugin.savedLayout().itemAt(12));
+        assertEquals(-1,plugin.savedLayout().itemAt(0));
+        assertEquals(1000,plugin.savedLayout().itemAt(16));
+        assertEquals(1000,plugin.view.itemAt(16));
+        assertArrayEquals(new int[]{8,72},geometry.get(children[0]));
+        assertFalse(withdraw(0,1000).isConsumed());
+        int size=plugin.savedLayout().size(); long epoch=plugin.view.epoch;
+        plugin.onClientTick(new ClientTick());
+        assertEquals(size,plugin.savedLayout().size()); assertEquals(epoch,plugin.view.epoch);
+    }
+
+    @Test public void addButtonSkipsTrailingEmptyRowsAndPreservesLayout()
+    {
+        plugin.capture(); plugin.setArrange(true);
+        plugin.move(0,150,100,plugin.view.epoch);
+        plugin.move(150,0,100,plugin.view.epoch); plugin.setArrange(false);
+        nativeItems(1000,100,200,300,400,500,600,700,800,900);
+        plugin.addNewStorageItems();
+        assertEquals(100,plugin.savedLayout().itemAt(0));
+        assertEquals(900,plugin.savedLayout().itemAt(8));
+        assertEquals(1000,plugin.savedLayout().itemAt(16));
+        assertEquals(17,plugin.savedLayout().size());
+        assertArrayEquals(new int[]{8,72},geometry.get(children[0]));
+        String saved=plugin.savedLayout().encode(); plugin.addNewStorageItems();
+        assertEquals(saved,plugin.savedLayout().encode());
+        assertFalse(withdraw(0,1000).isConsumed());
+    }
+
+    @Test public void withdrawAndReturnWithoutBuildEventUpdatesPlaceholder()
+    {
+        plugin.capture();
+        nativeItems(200,300,400,500,600,700,800,900);
+        plugin.onClientTick(new ClientTick());
+        assertTrue(plugin.view.missing.containsKey(100));
+        nativeItems(200,300,400,500,600,700,800,900,100);
+        plugin.onClientTick(new ClientTick());
+        assertFalse(plugin.view.missing.containsKey(100));
+        assertEquals(100,plugin.view.itemAt(0)); assertArrayEquals(new int[]{8,0},geometry.get(children[8]));
+        assertFalse(withdraw(8,100).isConsumed());
+    }
+
     private void nativeItems(int... ids)
     {
         children=new Widget[ids.length]; items=new Item[ids.length];
@@ -130,7 +178,7 @@ public class GroupStorageIntegrationTest
         assertEquals(100,plugin.view.itemAt(10));
         verify(config).setRSProfileConfiguration("groupstoragelayouts","layout","GSL1:-1,200,300,400,500,600,700,800,900,-1,100");
         rebuild(100,200,300,400,500,600,700,800,900,1000);
-        assertEquals(1000,plugin.savedLayout().itemAt(11));
+        assertEquals(1000,plugin.savedLayout().itemAt(16));
         plugin.setArrange(false); assertFalse(withdraw(0,100).isConsumed());
         verify(party,never()).send(any(GroupStorageLayoutSyncMessage.class)); assertTrue(sync.enabled());
     }
@@ -171,7 +219,7 @@ public class GroupStorageIntegrationTest
         reply.layout="GSL1:200,100"; reply.setMemberId(1);
         plugin.onGroupStorageLayoutSyncMessage(reply); plugin.onClientTick(new ClientTick());
         assertEquals("GSL1:200,100",plugin.savedLayout().encode());
-        assertEquals(300,plugin.view.itemAt(2)); // visible overflow, not a private saved position
+        assertEquals(300,plugin.view.itemAt(8)); // visible overflow, not a private saved position
         plugin.setArrange(true); plugin.move(0,10,200,plugin.view.epoch);
         assertEquals(200,plugin.view.itemAt(0)); // waits for acknowledgement
         verify(party,times(2)).send(sent.capture());

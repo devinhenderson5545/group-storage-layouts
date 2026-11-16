@@ -26,6 +26,7 @@ public class PartyLayoutSyncTest
     }
     @Before public void setup()
     {
+        when(plugin.layoutColumns()).thenReturn(8);
         when(client.getGameState()).thenReturn(GameState.LOGGED_IN); when(client.getLocalPlayer()).thenReturn(player);
         when(player.getName()).thenReturn("Teammate"); when(client.getItemCount()).thenReturn(40000);
         when(client.getClanSettings(ClanID.GROUP_IRONMAN)).thenReturn(clan); when(clan.getName()).thenReturn("Group");
@@ -123,7 +124,7 @@ public class PartyLayoutSyncTest
         assertTrue(adapter.canEdit()); assertTrue(adapter.canReplace());
         assertTrue(adapter.move(0,5,100));
         adapter.observe(Arrays.asList(200,300));
-        assertEquals("GSL1:-1,200,-1,-1,-1,100,300",saved.get().encode());
+        assertEquals("GSL1:-1,200,-1,-1,-1,100,-1,-1,300",saved.get().encode());
         verify(party,never()).send(any(GroupStorageLayoutSyncMessage.class));
         // A new adapter represents restart: only the persisted layout is retained.
         adapter=new PartyLayoutSync(plugin,client,party); adapter.configure(true,"Doc Sultan");

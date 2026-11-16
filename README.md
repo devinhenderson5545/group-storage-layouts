@@ -19,8 +19,13 @@ showing native order. Install **Group Storage Layouts** from RuneLite's Plugin H
    for actual storage transactions. Layout edits save automatically.
 
 Removing the final item leaves a faded zero placeholder. Returning that exact item
-ID shows it at the saved position, even if its native index changed. New item types
-append after the layout. Different charges, doses and degradation states use
+ID shows it at the saved position, even if its native index changed. Each batch of
+new item types starts on the first row below the last saved item or placeholder,
+then fills across. Trailing empty rows are ignored; internal gaps are preserved.
+With sync enabled, the host assigns shared positions using its saved grid width.
+Click **Add new storage items** with storage open and search cleared to rescan
+without replacing the layout. Items already assigned far down retain their saved
+positions; drag them up once in Arrange mode. Different charges, doses and degradation states use
 separate positions. Layouts save per RuneScape character profile.
 
 **Show saved layout** off restores the native view without deleting your layout.

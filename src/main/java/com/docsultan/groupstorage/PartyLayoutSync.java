@@ -53,8 +53,14 @@ final class PartyLayoutSync
         if(enabled && isLocalHost() && saved!=null)
         {
             StorageLayout edited=new StorageLayout(saved.items());
-            if(edited.remember(ids)) plugin.acceptSyncedLayout(edited);
+            if(edited.remember(ids,plugin.layoutColumns())) plugin.acceptSyncedLayout(edited);
         }
+    }
+    void requestLayout()
+    {
+        update();
+        if(state!=null) state.requestLayout();
+        renderStatus();
     }
     private boolean isLocalHost()
     {
@@ -133,6 +139,7 @@ final class PartyLayoutSync
             generation++; context=key;
             state=new LayoutSync(local.getMemberId()==leader.getMemberId(),local.getMemberId(),leader.getMemberId(),group,
                 plugin.savedLayout(),this::send,plugin::acceptSyncedLayout,plugin::syncNotice,System::currentTimeMillis);
+            state.setColumns(plugin::layoutColumns);
             plugin.syncContextChanged(); // Re-observe items already visible when a party reconnects.
         }
     }

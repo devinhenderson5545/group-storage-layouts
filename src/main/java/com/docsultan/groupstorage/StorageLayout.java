@@ -21,12 +21,25 @@ final class StorageLayout
 
     boolean remember(Collection<Integer> liveIds)
     {
+        return remember(liveIds, 8);
+    }
+
+    boolean remember(Collection<Integer> liveIds, int columns)
+    {
+        if (columns < 1 || columns > MAX_SLOTS) throw new IllegalArgumentException("Invalid grid width");
         LinkedHashSet<Integer> unseen = new LinkedHashSet<>(liveIds);
         unseen.removeIf(id -> id == null || id <= 0 || slots.contains(id));
-        if (slots.size() + unseen.size() > MAX_SLOTS)
+        if (unseen.isEmpty()) return false;
+        int end = slots.size();
+        while (end > 0 && slots.get(end - 1) == -1) end--;
+        int start = ((end + columns - 1) / columns) * columns;
+        if (start + unseen.size() > MAX_SLOTS)
             throw new IllegalArgumentException("Layout is full. Release unused placeholders first.");
-        slots.addAll(unseen); // Never fill gaps reserved by the user's arrangement.
-        return !unseen.isEmpty();
+        // Ignore trailing empty rows, but keep every item, placeholder and internal gap.
+        slots.subList(end, slots.size()).clear();
+        while (slots.size() < start) slots.add(-1);
+        slots.addAll(unseen);
+        return true;
     }
 
     void swap(int source, int target)

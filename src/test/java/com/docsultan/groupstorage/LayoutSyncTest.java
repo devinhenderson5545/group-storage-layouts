@@ -156,9 +156,28 @@ public class LayoutSyncTest
         Node a=new Node(1,true,100,-1,200), b=new Node(2,false), c=new Node(3,false);
         b.sync.observe(Arrays.asList(100,300)); c.sync.observe(Arrays.asList(300,400));
         connect(b,c); equal(a,b,c);
-        assertEquals(Arrays.asList(100,-1,200,300,400),a.saved.items());
+        assertEquals(100,a.saved.itemAt(0)); assertEquals(-1,a.saved.itemAt(1));
+        assertEquals(200,a.saved.itemAt(2)); assertEquals(300,a.saved.itemAt(8));
+        assertEquals(400,a.saved.itemAt(16));
         long revision=a.sync.revision(); now+=5000; connect(b,c); assertEquals(revision,a.sync.revision());
     }
+    @Test public void newFollowerObservationSyncsImmediatelyBelowLastRowUsingHostWidth()
+    {
+        Node a=new Node(1,true,100,-1,200), b=new Node(2,false), c=new Node(3,false);
+        a.sync.setColumns(() -> 6);
+        connect(b,c);
+        a.sync.move(2,150,200); flush(); a.sync.move(150,2,200); flush();
+        b.sync.observe(Arrays.asList(100,300,400));
+        b.sync.tick(); flush(); // No five-second wait after discovering an item.
+        equal(a,b,c);
+        assertEquals(100,a.saved.itemAt(0)); assertEquals(-1,a.saved.itemAt(1));
+        assertEquals(200,a.saved.itemAt(2)); assertEquals(300,a.saved.itemAt(6));
+        assertEquals(400,a.saved.itemAt(7)); assertEquals(8,a.saved.size());
+        long revision=a.sync.revision();
+        b.sync.requestLayout(); c.sync.observe(Arrays.asList(300,400)); c.sync.requestLayout(); flush();
+        equal(a,b,c); assertEquals(revision,a.sync.revision());
+    }
+
     @Test public void malformedAndWrongHostPacketsAreIgnored()
     {
         Node a=new Node(1,true,100,200), b=new Node(2,false); connect(b);

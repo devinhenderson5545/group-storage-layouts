@@ -63,6 +63,8 @@ public class GroupStoragePlugin extends Plugin
     private int nativeScrollHeight;
     private Map<Integer,BufferedImage> missing=Collections.emptyMap();
     private int visibleSlots;
+    private int[] appliedItemIds=new int[0], appliedItemQuantities=new int[0];
+    private Widget[] appliedItemWidgets=new Widget[0];
 
     @Override protected void startUp()
     {
@@ -149,6 +151,9 @@ public class GroupStoragePlugin extends Plugin
             return;
         }
         if(appliedContainer!=null && appliedContainer!=container) restore();
+        // Deposits/withdrawals can update an existing container without the build
+        // script firing. Rebuild the visual mapping from current native indices.
+        if(appliedContainer!=null && storageContentsChanged()) restore();
         if(appliedContainer==null && enabled && layout!=null) apply();
         if(appliedContainer!=null) refreshView();
     }
@@ -192,6 +197,33 @@ public class GroupStoragePlugin extends Plugin
                 layout=new StorageLayout(initial); enabled=true; save();
                 if(sync!=null && sync.enabled()) sync.replace(layout);
                 apply();
+            }
+            catch(IllegalArgumentException ex) { status(ex.getMessage()); }
+        });
+    }
+
+    void addNewStorageItems()
+    {
+        clientThread.invokeLater(() -> {
+            try
+            {
+                loadProfile();
+                if(layout==null) { status("No saved layout yet. Capture or import one first, or wait for your host to sync."); return; }
+                restore();
+                NativeStorage n=readNative();
+                grid=inferGrid(n);
+                long additions=n.live.keySet().stream().filter(id -> layout.positionOf(id)<0).count();
+                if(sync!=null && sync.enabled())
+                {
+                    sync.observe(n.live.keySet());
+                    sync.requestLayout();
+                }
+                else if(layout.remember(n.live.keySet(),layoutColumns())) save();
+                boolean awaitingHost=n.live.keySet().stream().anyMatch(id -> layout.positionOf(id)<0);
+                apply();
+                status(awaitingHost?"New items are waiting for the layout host. They appear at the bottom with Show saved layout enabled. Join the same RuneLite Party to save shared positions.":
+                    additions==0?"All current storage items are already in the saved layout.":
+                    "Added "+additions+" new item types at the bottom. Existing positions and placeholders were kept.");
             }
             catch(IllegalArgumentException ex) { status(ex.getMessage()); }
         });
@@ -318,11 +350,11 @@ public class GroupStoragePlugin extends Plugin
             NativeStorage n=readNative();
             grid=inferGrid(n);
             if(sync!=null && sync.enabled()) sync.observe(n.live.keySet());
-            else if(layout.remember(n.live.keySet())) save();
+            else if(layout.remember(n.live.keySet(),layoutColumns())) save();
             // Unknown items remain usable while waiting for the host to assign shared slots.
             // This temporary append is never saved or sent as an authoritative layout.
             displayLayout=new StorageLayout(layout.items());
-            displayLayout.remember(n.live.keySet());
+            displayLayout.remember(n.live.keySet(),layoutColumns());
             appliedContainer=n.parent; nativeScrollHeight=n.parent.getScrollHeight();
             missing=new HashMap<>();
             for(int id:displayLayout.items()) if(id>0 && !n.live.containsKey(id)) missing.put(id,itemManager.getImage(id));
@@ -335,6 +367,7 @@ public class GroupStoragePlugin extends Plugin
             visibleSlots=Math.min(StorageLayout.MAX_SLOTS,Math.max(displayLayout.size(),grid.columns)+grid.columns*2);
             n.parent.setScrollHeight(Math.max(n.parent.getHeight(),grid.scrollHeight(visibleSlots)));
             n.parent.revalidateScroll();
+            rememberAppliedContents();
             epoch++;
             refreshView();
             status(arranging?"Arrange mode: drag to swap positions. Storage item clicks are disabled.":
@@ -343,6 +376,30 @@ public class GroupStoragePlugin extends Plugin
         }
         catch(IllegalArgumentException ex) { restore(); status(ex.getMessage()); }
         catch(RuntimeException ex) { restore(); enabled=false; status("Layout paused after an interface error. Native view restored."); log.warn("Group storage layout paused",ex); }
+    }
+
+    private boolean storageContentsChanged()
+    {
+        ItemContainer storage=client.getItemContainer(InventoryID.INV_GROUP_TEMP);
+        if(storage==null) return true;
+        Item[] items=storage.getItems();
+        if(items.length!=appliedItemIds.length) return true;
+        for(int i=0;i<items.length;i++)
+            if(items[i].getId()!=appliedItemIds[i] || items[i].getQuantity()!=appliedItemQuantities[i]
+                || appliedContainer.getChild(i)!=appliedItemWidgets[i]) return true;
+        return false;
+    }
+
+    private void rememberAppliedContents()
+    {
+        Item[] items=client.getItemContainer(InventoryID.INV_GROUP_TEMP).getItems();
+        appliedItemIds=new int[items.length]; appliedItemQuantities=new int[items.length];
+        appliedItemWidgets=new Widget[items.length];
+        for(int i=0;i<items.length;i++)
+        {
+            appliedItemIds[i]=items[i].getId(); appliedItemQuantities[i]=items[i].getQuantity();
+            appliedItemWidgets[i]=appliedContainer.getChild(i);
+        }
     }
 
     private void refreshView()
@@ -384,6 +441,7 @@ public class GroupStoragePlugin extends Plugin
     }
 
     StorageLayout savedLayout() { return layout; }
+    int layoutColumns() { return grid==null?8:grid.columns; }
     void syncContextChanged() { restore(); }
     void acceptSyncedLayout(StorageLayout incoming)
     {

@@ -20,6 +20,9 @@ final class LayoutSync
     private long revision, nextPoll, lastHeard, pendingSince;
     private boolean heard, hostNeedsLayout;
     private int[] observed=new int[0];
+    private java.util.function.IntSupplier columns=() -> 8;
+
+    void setColumns(java.util.function.IntSupplier columns) { this.columns=columns; }
 
     LayoutSync(boolean host,long self,long leader,String group,StorageLayout initial,
         Consumer<GroupStorageLayoutSyncMessage> send,Consumer<StorageLayout> changed,
@@ -48,15 +51,23 @@ final class LayoutSync
         }
         if(!host && now>=nextPoll)
         {
-            nextPoll=now+POLL_MS; poll=UUID.randomUUID().toString();
-            GroupStorageLayoutSyncMessage m=message("get"); m.token=poll; m.observed=observed.clone(); send.accept(m);
+            requestLayout();
         }
+    }
+
+    void requestLayout()
+    {
+        if(host) return;
+        nextPoll=clock.getAsLong()+POLL_MS; poll=UUID.randomUUID().toString();
+        GroupStorageLayoutSyncMessage m=message("get"); m.token=poll; m.observed=observed.clone(); send.accept(m);
     }
 
     void observe(Collection<Integer> ids)
     {
-        observed=ids.stream().filter(id -> id!=null && id>0 && id<=1_000_000)
+        int[] current=ids.stream().filter(id -> id!=null && id>0 && id<=1_000_000)
             .distinct().limit(StorageLayout.MAX_SLOTS).mapToInt(Integer::intValue).toArray();
+        if(!Arrays.equals(observed,current)) nextPoll=0;
+        observed=current;
         if(host && layout!=null && remember(observed)) publish(null,0,null);
     }
 
@@ -156,7 +167,7 @@ final class LayoutSync
     {
         try
         {
-            if(!layout.remember(Arrays.stream(ids).boxed().collect(java.util.stream.Collectors.toList()))) return false;
+            if(!layout.remember(Arrays.stream(ids).boxed().collect(java.util.stream.Collectors.toList()),columns.getAsInt())) return false;
             revision++; commit(); return true;
         }
         catch(IllegalArgumentException ex) { notice.accept("Shared layout is full; new items use the native view until space is available."); return false; }

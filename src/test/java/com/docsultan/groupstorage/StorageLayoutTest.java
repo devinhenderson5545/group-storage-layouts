@@ -31,7 +31,33 @@ public class StorageLayoutTest
     @Test public void newItemsAppendWithoutFillingIntentionalGaps()
     {
         StorageLayout l=new StorageLayout(Arrays.asList(100,-1,300)); l.remember(Arrays.asList(100,400));
-        assertEquals(Arrays.asList(100,-1,300,400),l.items());
+        assertEquals(Arrays.asList(100,-1,300,-1,-1,-1,-1,-1,400),l.items());
+    }
+    @Test public void trailingEmptyRowsDoNotPushNewItemsDown()
+    {
+        List<Integer> slots=new ArrayList<>(Collections.nCopies(160,-1));
+        slots.set(0,100); slots.set(10,200);
+        StorageLayout l=new StorageLayout(slots);
+        assertTrue(l.remember(Arrays.asList(100,300,400),8));
+        assertEquals(100,l.itemAt(0)); assertEquals(200,l.itemAt(10));
+        assertEquals(-1,l.itemAt(1)); assertEquals(300,l.itemAt(16));
+        assertEquals(400,l.itemAt(17)); assertEquals(18,l.size());
+        assertFalse(l.remember(Arrays.asList(100,300,400),8));
+    }
+    @Test public void movingLastItemUpDoesNotLeaveAnAppendGap()
+    {
+        StorageLayout l=new StorageLayout(Arrays.asList(100,200));
+        l.swap(1,150); l.swap(150,1);
+        l.remember(Arrays.asList(300),8);
+        assertEquals(300,l.itemAt(8)); assertEquals(9,l.size());
+    }
+    @Test public void newRowUsesActualGridWidthAndEmptyLayoutStartsAtZero()
+    {
+        StorageLayout l=new StorageLayout();
+        l.remember(Arrays.asList(100,200),6);
+        l.remember(Arrays.asList(300,400),6);
+        assertEquals(100,l.itemAt(0)); assertEquals(300,l.itemAt(6));
+        assertEquals(400,l.itemAt(7));
     }
     @Test public void separateVariantsNeverShareAWithdrawalSlot()
     {
